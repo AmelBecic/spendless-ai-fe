@@ -13,7 +13,6 @@ import type {
   UpdateFixedExpenseBody,
 } from "../api/contract";
 import { api } from "../api/client";
-import { useCategories } from "../hooks/useCategories";
 import { formatMoney } from "../money/formatMoney";
 import { FixedExpenseForm } from "./FixedExpenseForm";
 
@@ -29,8 +28,16 @@ function userMessageOf(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
 }
 
-export function FixedExpensesSection() {
-  const { categories, loading: categoriesLoading, error: categoriesError } = useCategories();
+export function FixedExpensesSection({
+  categories,
+  categoriesLoading,
+  categoriesError,
+}: {
+  // Shared from the screen level — see TransactionsSection for the rationale.
+  categories: Category[];
+  categoriesLoading: boolean;
+  categoriesError: string | null;
+}) {
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

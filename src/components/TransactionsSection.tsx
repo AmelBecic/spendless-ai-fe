@@ -14,7 +14,6 @@ import type {
   UpdateTransactionBody,
 } from "../api/contract";
 import { api } from "../api/client";
-import { useCategories } from "../hooks/useCategories";
 import { formatMoney } from "../money/formatMoney";
 import { TransactionForm } from "./TransactionForm";
 
@@ -30,8 +29,17 @@ function userMessageOf(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message ? cause.message : fallback;
 }
 
-export function TransactionsSection() {
-  const { categories, loading: categoriesLoading, error: categoriesError } = useCategories();
+export function TransactionsSection({
+  categories,
+  categoriesLoading,
+  categoriesError,
+}: {
+  // The category list is fetched once at the screen level and shared, rather
+  // than re-fetched here — both sections need the same immutable list.
+  categories: Category[];
+  categoriesLoading: boolean;
+  categoriesError: string | null;
+}) {
   const [list, setList] = useState<ListState>({ status: "loading" });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

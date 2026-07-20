@@ -6,18 +6,23 @@
 
 import Link from "next/link";
 import { RequireAuth } from "../../auth/RequireAuth";
+import { useCategories } from "../../hooks/useCategories";
 import { TransactionsSection } from "../../components/TransactionsSection";
 import { FixedExpensesSection } from "../../components/FixedExpensesSection";
 
 function LogScreen() {
+  // Fetched once here and shared: both sections need the same immutable
+  // category list, so fetching it per section would double the request.
+  const { categories, loading, error } = useCategories();
+
   return (
     <main>
       <h1>Log your spending</h1>
       <p>
         <Link href="/">Back to overview</Link>
       </p>
-      <TransactionsSection />
-      <FixedExpensesSection />
+      <TransactionsSection categories={categories} categoriesLoading={loading} categoriesError={error} />
+      <FixedExpensesSection categories={categories} categoriesLoading={loading} categoriesError={error} />
     </main>
   );
 }

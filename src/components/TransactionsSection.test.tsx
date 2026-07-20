@@ -14,14 +14,18 @@ vi.mock("../api/client", () => ({
 }));
 
 const CATEGORIES: Category[] = [{ id: "cat-groceries", key: "groceries", label: "Groceries" }];
-vi.mock("../hooks/useCategories", () => ({
-  useCategories: () => ({ categories: CATEGORIES, loading: false, error: null }),
-}));
 
 import { api } from "../api/client";
 import { TransactionsSection } from "./TransactionsSection";
 
 const mockApi = vi.mocked(api);
+
+/** The category list is supplied by the screen now, not fetched here. */
+function renderSection() {
+  return render(
+    <TransactionsSection categories={CATEGORIES} categoriesLoading={false} categoriesError={null} />,
+  );
+}
 
 function txn(overrides: Partial<Transaction> = {}): Transaction {
   return {
@@ -46,7 +50,7 @@ describe("TransactionsSection", () => {
       nextCursor: null,
     });
 
-    render(<TransactionsSection />);
+    renderSection();
 
     expect(await screen.findByText("€18.99")).toBeInTheDocument();
     expect(screen.getByText("Groceries")).toBeInTheDocument();
@@ -55,7 +59,7 @@ describe("TransactionsSection", () => {
   it("shows an explicit empty state rather than a zero row", async () => {
     mockApi.listTransactions.mockResolvedValue({ transactions: [], nextCursor: null });
 
-    render(<TransactionsSection />);
+    renderSection();
 
     expect(await screen.findByTestId("transactions-empty")).toBeInTheDocument();
   });
@@ -64,7 +68,7 @@ describe("TransactionsSection", () => {
     mockApi.listTransactions.mockResolvedValue({ transactions: [txn()], nextCursor: null });
     mockApi.deleteTransaction.mockResolvedValue(undefined as never);
 
-    render(<TransactionsSection />);
+    renderSection();
     expect(await screen.findByText("€18.99")).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Delete" }));
@@ -78,7 +82,7 @@ describe("TransactionsSection", () => {
       Object.assign(new Error("boom"), { userMessage: "Could not load your transactions." }),
     );
 
-    render(<TransactionsSection />);
+    renderSection();
 
     expect(await screen.findByText("Could not load your transactions.")).toBeInTheDocument();
   });
