@@ -74,6 +74,37 @@ below that only a client can.
       banner throws that away.
 - [ ] Never swallow a caught error — surface it or log the cause, never `catch {}`.
 - [ ] Every request is **bounded by a timeout** so a hung backend cannot hang the UI forever.
+- [ ] **Wire up cancellation before the first `await`, not before the `fetch`.** Resolving the access
+      token is itself an await, so a caller that aborts in that window finds no listener attached: the
+      request goes out anyway and only the timeout can end it. Test the abort that happens *during*
+      token resolution, not just the one during the request. (SLAI-25.)
+- [ ] **A third-party library's error message is not automatically a user-facing one.** Supabase
+      reports a transport failure as "Failed to fetch" (engine-dependent); rendering it verbatim gives
+      the user a browser internal where advice belongs. Translate at the auth/API boundary and keep
+      the original as `cause`. (SLAI-25.)
+- [ ] **Neither is your own synthesised fallback.** When a failing response carries no envelope, the
+      only `message` available is one you built (`GET /stats failed with 502`). Keep the diagnostic on
+      `message` and give the user a separate written-for-humans string — and assert on *that* field in
+      the test, not just on `code`. (SLAI-25, reviewer.)
+- [ ] **Key a status-driven branch on the status, not only on the backend's code.** A 429 from a proxy
+      or gateway never carries `RATE_LIMITED`, so a code-only check silently drops the rate-limit path
+      on the exact hop most likely to emit it. (SLAI-25, reviewer.)
+- [ ] **A request timer must cover the body read, not just the headers.** `fetch` resolves as soon as
+      headers arrive; clearing the timeout before `response.text()` leaves a server that stalls the
+      body able to hang the UI forever — the invariant you thought you had. (SLAI-25, reviewer.)
+- [ ] **"Could not read the session" is not "there is no session."** Downgrading a failed session read
+      to an anonymous request earns a 401, and the 401 path then signs out a user whose session was
+      merely unreadable for a moment. (SLAI-25, reviewer.)
+
+## Tests that only look like guards
+
+- [ ] **A race test must assert after the losing write has been flushed.** Asserting straight after
+      resolving the slow promise passes whether or not the race is guarded, because React has not
+      processed the clobber yet — wrap the resolve in `act` and flush before asserting. Caught by
+      running the test against a deliberately un-guarded tree. (SLAI-25.)
+- [ ] **A stub must reproduce the semantics under test, not just the shape.** A hand-built `Response`
+      is not tied to the request's `AbortSignal` the way a real `fetch` body is, so a "body stalls"
+      test built on one proves nothing about cancellation. Wire the stub to the signal. (SLAI-25.)
 
 ## Rendering & state
 
