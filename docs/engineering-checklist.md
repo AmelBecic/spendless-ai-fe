@@ -72,6 +72,13 @@ below that only a client can.
 - [ ] **Field-level 400s render against the offending field.** The backend sends
       `details: [{ path, message }]` precisely so the form can; collapsing them into one form-level
       banner throws that away.
+- [ ] **A `details.path` the form does not render must still reach the user — route it to the
+      form-level fallback, never drop it into an unread `fields` key.** A non-empty path that matches
+      no input silently vanishes: it is neither shown against a field nor surfaced at form level,
+      which is the exact "something is wrong, but not which box" failure the field-level rule exists
+      to prevent. Watch the request/response asymmetry: a body sends `amountCents`/`currency` flat,
+      but a validation path may still arrive nested (`money.currency`) — normalize it onto the flat
+      key the form renders. (SLAI-26, reviewer.)
 - [ ] Never swallow a caught error — surface it or log the cause, never `catch {}`.
 - [ ] Every request is **bounded by a timeout** so a hung backend cannot hang the UI forever.
 - [ ] **Wire up cancellation before the first `await`, not before the `fetch`.** Resolving the access

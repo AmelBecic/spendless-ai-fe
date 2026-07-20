@@ -4,6 +4,7 @@
 // (SLAI-26), the dashboard (SLAI-27) and the suggestions feed (SLAI-28) land
 // behind this same guard.
 
+import Link from "next/link";
 import { useState } from "react";
 import { RequireAuth } from "../auth/RequireAuth";
 import { useAuth } from "../auth/AuthProvider";
@@ -28,7 +29,10 @@ function Dashboard() {
       <p>
         Signed in as <strong>{user?.email}</strong>.
       </p>
-      <p>Auth and the API client are in place; the screens land over the rest of Sprint 3.</p>
+      <p>
+        <Link href="/log">Log your spending</Link>
+      </p>
+      <p>The dashboard and suggestions feed land over the rest of Sprint 3.</p>
       {signOutError ? <p role="alert">{signOutError}</p> : null}
       <button type="button" onClick={handleSignOut}>
         Sign out
