@@ -69,6 +69,36 @@ describe("toFormErrors", () => {
     expect(form).toContain("refresh budget");
   });
 
+  it("normalizes a nested `money.` path onto the flat field the form renders", () => {
+    const error = new ApiError({
+      status: 400,
+      code: "VALIDATION_FAILED",
+      message: "Validation failed",
+      fromEnvelope: true,
+      details: [{ path: "money.currency", message: "Unknown currency." }],
+    });
+
+    // Without knownFields the key is still normalized; with them it matches.
+    expect(toFormErrors(error).fields).toEqual({ currency: "Unknown currency." });
+    expect(toFormErrors(error, ["currency"]).fields).toEqual({ currency: "Unknown currency." });
+  });
+
+  it("routes a path the form does not render to the form, never dropping it", () => {
+    const error = new ApiError({
+      status: 400,
+      code: "VALIDATION_FAILED",
+      message: "Validation failed",
+      fromEnvelope: true,
+      details: [{ path: "userId", message: "Not permitted." }],
+    });
+
+    // `userId` is no rendered field: it must reach the user at form level, not
+    // vanish into a `fields` key nothing reads.
+    const { fields, form } = toFormErrors(error, ["amountCents", "currency"]);
+    expect(fields).toEqual({});
+    expect(form).toBe("Not permitted.");
+  });
+
   it("wraps a non-ApiError as a single form-level message", () => {
     expect(toFormErrors(new Error("boom"))).toEqual({ fields: {}, form: "boom" });
     expect(toFormErrors("not even an error")).toEqual({

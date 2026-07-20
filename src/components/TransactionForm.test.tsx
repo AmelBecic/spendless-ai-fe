@@ -81,6 +81,27 @@ describe("TransactionForm", () => {
     expect(screen.queryByTestId("form-error")).not.toBeInTheDocument();
   });
 
+  it("lands a nested `money.currency` 400 on the currency field", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError({
+        status: 400,
+        code: "VALIDATION_FAILED",
+        message: "Validation failed",
+        fromEnvelope: true,
+        details: [{ path: "money.currency", message: "That currency is not supported." }],
+      }),
+    );
+    renderForm({ onSubmit });
+    const user = await fillAmountAndCategory("10");
+
+    await user.click(screen.getByRole("button", { name: "Log transaction" }));
+
+    const currency = screen.getByLabelText("Currency");
+    await waitFor(() => expect(currency).toHaveAttribute("aria-invalid", "true"));
+    const describedBy = currency.getAttribute("aria-describedby");
+    expect(document.getElementById(describedBy!)).toHaveTextContent("not supported");
+  });
+
   it("omits merchant, note and occurredAt from the body when left empty", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     renderForm({ onSubmit });

@@ -25,6 +25,10 @@ import { CategorySelect } from "./CategorySelect";
  * the field stays editable because the backend accepts any ISO-4217 code. */
 const DEFAULT_CURRENCY = "EUR";
 
+/** The fields this form renders — a backend 400 on any other path is surfaced
+ * at form level rather than dropped (see toFormErrors). */
+const KNOWN_FIELDS = ["amountCents", "currency", "categoryId", "merchant", "note", "occurredAt"] as const;
+
 interface Values {
   amount: string;
   currency: string;
@@ -116,7 +120,7 @@ export function TransactionForm({
     try {
       await onSubmit(buildBody(mode, values, parsed.cents, occurredAtIso));
     } catch (cause) {
-      const { fields, form } = toFormErrors(cause);
+      const { fields, form } = toFormErrors(cause, KNOWN_FIELDS);
       setFieldErrors(fields);
       setFormError(form);
     } finally {

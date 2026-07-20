@@ -23,13 +23,29 @@ export interface FormErrors {
 const EMPTY: FormErrors = { fields: {}, form: null };
 
 /**
+ * Requests send `amountCents` / `currency` flat while responses nest them under
+ * `money` (see contract.ts). A validation path like `"money.currency"` therefore
+ * names the same flat field the form renders as `currency` — map it back so the
+ * message lands on the input rather than under a key nothing reads.
+ */
+function normalizeFieldPath(path: string): string {
+  return path.replace(/^money\./, "");
+}
+
+/**
  * Classify an unknown thrown value into field-level and form-level messages.
  *
  * A non-`ApiError` (or an `ApiError` with no usable detail) becomes a single
  * form-level message — the same `userMessage` the client already wrote for
  * humans, never a raw envelope string or a library internal.
+ *
+ * `knownFields` is the set of field paths the caller actually renders. When
+ * given, a detail whose (normalized) path is *not* one of them is routed to the
+ * form-level fallback rather than dropped into a `fields` key no input reads —
+ * a message that names a field the form does not show must still reach the user,
+ * or AC3's "tell them which box to fix" fails silently.
  */
-export function toFormErrors(error: unknown): FormErrors {
+export function toFormErrors(error: unknown, knownFields?: readonly string[]): FormErrors {
   if (!(error instanceof ApiError)) {
     return {
       fields: {},
@@ -46,16 +62,29 @@ export function toFormErrors(error: unknown): FormErrors {
 
   const fields: Record<string, string> = {};
   let form: string | null = null;
+  const toForm = (message: string) => {
+    form ??= message;
+  };
+
   for (const { path, message } of details) {
-    if (path) {
-      // First message wins per field — the backend orders them, and stacking
-      // several under one input reads worse than showing the first.
-      if (!(path in fields)) fields[path] = message;
-    } else {
+    if (!path) {
       // An empty path is a whole-object rule (e.g. "at least one field
       // required"): it has no input to sit under, so it goes to the form.
-      form ??= message;
+      toForm(message);
+      continue;
     }
+
+    const key = normalizeFieldPath(path);
+    if (knownFields && !knownFields.includes(key)) {
+      // The form does not render this field — surface it at form level rather
+      // than letting it vanish into an unread `fields` key.
+      toForm(message);
+      continue;
+    }
+
+    // First message wins per field — the backend orders them, and stacking
+    // several under one input reads worse than showing the first.
+    if (!(key in fields)) fields[key] = message;
   }
 
   return { fields, form };

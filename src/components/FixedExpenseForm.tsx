@@ -20,6 +20,10 @@ import { CategorySelect } from "./CategorySelect";
 
 const DEFAULT_CURRENCY = "EUR";
 
+/** The fields this form renders — a backend 400 on any other path is surfaced
+ * at form level rather than dropped (see toFormErrors). */
+const KNOWN_FIELDS = ["label", "amountCents", "currency", "categoryId", "cadence"] as const;
+
 // A record over `Cadence` rather than a bare array: a new variant on the union
 // makes this a compile error (a missing key) instead of a select that silently
 // omits an option. This is the "pin the list to its source" the checklist asks
@@ -101,7 +105,7 @@ export function FixedExpenseForm({
       };
       await onSubmit(body);
     } catch (cause) {
-      const { fields, form } = toFormErrors(cause);
+      const { fields, form } = toFormErrors(cause, KNOWN_FIELDS);
       setFieldErrors(fields);
       setFormError(form);
     } finally {
