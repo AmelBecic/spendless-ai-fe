@@ -1,0 +1,16 @@
+{
+  "$comment": "Per-repo workflow config, read by the /ticket skill. Committed so the loop is reproducible; contains no secrets.",
+  "jiraKey": "SLAI",
+  "cloudId": "becicamel98.atlassian.net",
+  "boardId": "67",
+  "ticketFilterJql": "labels = frontend",
+  "reviewerPath": "~/Desktop/career-improvement/ai-code-reviewer",
+  "assigneeAccountId": "5e735d85d6e3cc0c3dda1c3d",
+  "transitions": {
+    "$comment": "Same team-managed SLAI project as the backend; IDs verified there against SLAI-1 (all global).",
+    "todo": "11",
+    "inProgress": "21",
+    "inReview": "31",
+    "done": "41"
+  }
+}

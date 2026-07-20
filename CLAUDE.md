@@ -6,12 +6,13 @@
 
 ## What this client is
 
-The UI for a *grounded personal-finance profiling agent* — not a budget tracker. Users log fixed
+The UI for a _grounded personal-finance profiling agent_ — not a budget tracker. Users log fixed
 monthly expenses and daily spending; the backend maintains an evolving per-user profile and emits
 **cited** savings suggestions. The differentiating screen is the suggestions feed, where every
 claim is shown next to the stat it rests on.
 
 ## Workflow (non-negotiable)
+
 - **Never commit directly to `main`.** Every change: feature branch → PR → review → merge.
 - Branch names: `feat/TICKET-desc`, `fix/TICKET-desc`, `chore/desc`.
 - Run the **AI code reviewer** on the PR before merging.
@@ -19,6 +20,7 @@ claim is shown next to the stat it rests on.
   label. Sprint 3 is epic **SLAI-22** (tickets SLAI-24 → 28).
 
 ## Security
+
 - **No secrets in the repo, ever.** Real values go in `.env.local` (git-ignored). Document required
   keys in `.env.example`.
 - Only `NEXT_PUBLIC_*` vars reach the browser — never put a service-role key or the Anthropic key
@@ -26,10 +28,12 @@ claim is shown next to the stat it rests on.
 - The **pre-commit hook** runs `gitleaks`. Do not bypass hooks (`--no-verify`) without a stated reason.
 
 ## Quality gates (run before pushing)
+
 - `npm run lint` · `npm run typecheck` · `npm run test`
 - CI enforces the same gates on every PR.
 
 ## Conventions
+
 - TypeScript (strict, ESM), Next.js, small focused modules.
 - Match existing code style; keep comment density consistent with surrounding code.
 - Prefer clarity over cleverness.
@@ -79,12 +83,13 @@ The two `refresh` routes are LLM-backed, share one per-user rate budget, and ret
 
 No `ANTHROPIC_API_KEY` has ever been used against the live API. Every agent path in the backend was
 built and tested against a scripted stub that conforms to the response schema by construction, and
-the eval numbers currently published measure *the backend's code*, not the model's output. The
+the eval numbers currently published measure _the backend's code_, not the model's output. The
 structured-output and prompt-caching contracts are **unverified against the real API**.
 
 Practically: if a profile or suggestion response looks wrong during development, the backend's live
 model path is an untested suspect, not a ruled-out one. The live eval run is Sprint 4.
 
 ## Tooling
+
 - Serena MCP is configured for the backend repo, not this one. Add it here if code navigation gets
   painful: `claude mcp add serena` (config is local-scope, so it is not checked in).

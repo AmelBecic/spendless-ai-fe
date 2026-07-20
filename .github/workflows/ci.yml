@@ -1,0 +1,59 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push supersedes the run still going for the same ref — except on main,
+# where every commit's result is a record worth keeping.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+
+    # No database service here, unlike the backend's CI: this client owns no
+    # data and its tests run against a stubbed transport, never a live backend
+    # or Supabase project.
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs full history
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # No `--if-present`: these three scripts all exist, and if one is ever
+      # renamed away the gate must fail loudly rather than silently pass.
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      # The gate the backend has no equivalent of: a Next app that typechecks
+      # can still fail to build (server/client boundary violations surface only
+      # here). Runs last because it is the slowest.
+      - name: Build
+        run: npm run build
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high || true

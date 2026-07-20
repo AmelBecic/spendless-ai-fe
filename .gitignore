@@ -17,6 +17,9 @@ coverage/
 .env.local
 .env.*.local
 
+# claude: keep the shared allowlist + config + skills, ignore per-machine one-offs
+.claude/settings.local.json
+
 # misc
 .DS_Store
 *.pem
