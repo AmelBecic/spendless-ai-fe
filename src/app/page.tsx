@@ -4,11 +4,23 @@
 // (SLAI-26), the dashboard (SLAI-27) and the suggestions feed (SLAI-28) land
 // behind this same guard.
 
+import { useState } from "react";
 import { RequireAuth } from "../auth/RequireAuth";
 import { useAuth } from "../auth/AuthProvider";
 
 function Dashboard() {
   const { user, signOut } = useAuth();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  // `signOut` rejects on a transport failure. Floating the promise would leave
+  // the user still signed in, nothing on screen, and only a console rejection
+  // to show for the click.
+  function handleSignOut() {
+    setSignOutError(null);
+    signOut().catch((cause: unknown) => {
+      setSignOutError(cause instanceof Error ? cause.message : "Could not sign out.");
+    });
+  }
 
   return (
     <main>
@@ -16,10 +28,9 @@ function Dashboard() {
       <p>
         Signed in as <strong>{user?.email}</strong>.
       </p>
-      <p>
-        Auth and the API client are in place; the screens land over the rest of Sprint 3.
-      </p>
-      <button type="button" onClick={() => void signOut()}>
+      <p>Auth and the API client are in place; the screens land over the rest of Sprint 3.</p>
+      {signOutError ? <p role="alert">{signOutError}</p> : null}
+      <button type="button" onClick={handleSignOut}>
         Sign out
       </button>
     </main>

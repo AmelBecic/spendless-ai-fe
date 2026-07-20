@@ -199,6 +199,37 @@ describe("the error envelope", () => {
     expect(error.status).toBe(502);
     expect(error.code).toBe("HTTP_502");
   });
+
+  // `message` on an envelope-less failure is a synthesised internal
+  // ("GET /categories failed with 502"). Showing it to a user puts a method and
+  // a path where advice belongs.
+  it("never puts the synthesised internal message in front of a user", async () => {
+    const { api } = makeClient({
+      transport: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response("<html>502 Bad Gateway</html>", { status: 502 })),
+    });
+
+    const error = (await api.getCategories().catch((e: unknown) => e)) as ApiError;
+
+    expect(error.message).toContain("/categories");
+    expect(error.userMessage).not.toContain("/categories");
+    expect(error.userMessage).toBe("Something went wrong on our end. Please try again.");
+  });
+
+  it("shows the backend's own message when there is an envelope", async () => {
+    const { api } = makeClient({
+      transport: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          jsonResponse(409, { error: { code: "MIXED_CURRENCY", message: "Ledger mixes EUR and USD" } }),
+        ),
+    });
+
+    const error = (await api.getStats().catch((e: unknown) => e)) as ApiError;
+
+    expect(error.userMessage).toBe("Ledger mixes EUR and USD");
+  });
 });
 
 describe("a 401", () => {
@@ -284,6 +315,28 @@ describe("a 429 from the LLM-backed refresh routes", () => {
 
     expect(error.retryAfterSeconds).toBe(45);
     expect(error.userMessage).toContain("45 seconds");
+  });
+
+  // A gateway's 429 never carries the backend's RATE_LIMITED envelope, but it
+  // is still a rate limit and the user still needs the wait.
+  it("is recognised by status even when the body is not the backend envelope", async () => {
+    const { api } = makeClient({
+      transport: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response("<html>429 Too Many Requests</html>", {
+            status: 429,
+            headers: { "Retry-After": "60" },
+          }),
+        ),
+    });
+
+    const error = (await api.refreshProfile().catch((e: unknown) => e)) as ApiError;
+
+    expect(error.code).toBe("HTTP_429");
+    expect(error.isRateLimited).toBe(true);
+    expect(error.userMessage).toContain("1 minute");
+    expect(error.userMessage).not.toContain("/profile/refresh");
   });
 
   it("still gives an actionable message when Retry-After is missing", async () => {
@@ -417,6 +470,29 @@ describe("transport failures", () => {
     expect(error.code).toBe(CLIENT_TIMEOUT);
   });
 
+  // `fetch` resolves as soon as the headers arrive. A server that then stalls
+  // the body used to hang the caller forever: the timer had already been
+  // cleared by the time `response.text()` was awaited.
+  it("times out a response whose headers arrive but whose body never completes", async () => {
+    // Headers resolve immediately; the body never completes. Wired to the
+    // request signal the way a real `fetch` body is, so that aborting the
+    // controller is what ends it — which is the behaviour under test.
+    const stalling = vi.fn<typeof fetch>().mockImplementation(async (_input, init) => {
+      const body = new ReadableStream({
+        start(controller) {
+          init?.signal?.addEventListener("abort", () => controller.error(new Error("aborted")));
+        },
+      });
+      return new Response(body, { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const { api } = makeClient({ transport: stalling, timeoutMs: 20 });
+
+    const error = (await api.getCategories().catch((e: unknown) => e)) as ApiError;
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe(CLIENT_TIMEOUT);
+  });
+
   it("rejects an OK response whose body is not JSON", async () => {
     const { api } = makeClient({
       transport: vi.fn<typeof fetch>().mockResolvedValue(new Response("not json", { status: 200 })),
@@ -425,6 +501,32 @@ describe("transport failures", () => {
     const error = (await api.getCategories().catch((e: unknown) => e)) as ApiError;
 
     expect(error.code).toBe(CLIENT_MALFORMED);
+  });
+});
+
+describe("an unreadable session", () => {
+  // "Could not read the session" is not "there is no session". Downgrading it
+  // to an anonymous request earns a 401, and the 401 path would then sign out a
+  // user whose session was merely unreadable for a moment.
+  it("fails the request instead of going out anonymously", async () => {
+    const transport = vi.fn<typeof fetch>();
+    const { api, onUnauthorized } = makeClient({
+      transport,
+      getAccessToken: async () => {
+        throw new ApiError({
+          status: null,
+          code: "CLIENT_NO_SESSION",
+          message: "Could not read the current session",
+        });
+      },
+    });
+
+    const error = (await api.getProfile().catch((e: unknown) => e)) as ApiError;
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    expect(error.code).toBe("CLIENT_NO_SESSION");
+    expect(error.userMessage).toContain("could not confirm your session");
   });
 });
 

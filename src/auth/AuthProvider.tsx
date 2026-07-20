@@ -33,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabase();
     let active = true;
+    // Two writers race into `setSession`. If the subscription has already
+    // delivered an event — a fast sign-in, or the SIGNED_IN from a
+    // `detectSessionInUrl` hash exchange — then the initial read is the older
+    // answer, and letting it land would clobber a live session with a stale
+    // (possibly null) one and bounce the user to /login.
+    let sawAuthEvent = false;
 
     // Read the persisted session once on mount, then let the subscription below
     // carry every later change (sign-in, sign-out, background token refresh,
@@ -40,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth
       .getSession()
       .then(({ data }) => {
-        if (!active) return;
+        if (!active || sawAuthEvent) return;
         setSession(data.session);
       })
       .catch((cause) => {
@@ -53,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, next) => {
+      sawAuthEvent = true;
       setSession(next);
       setLoading(false);
     });

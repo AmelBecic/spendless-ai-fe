@@ -49,6 +49,8 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 export const CLIENT_TIMEOUT = "CLIENT_TIMEOUT";
 export const CLIENT_NETWORK = "CLIENT_NETWORK";
 export const CLIENT_MALFORMED = "CLIENT_MALFORMED_RESPONSE";
+/** The session could not be read — distinct from "there is no session". */
+export const CLIENT_NO_SESSION = "CLIENT_NO_SESSION";
 
 /**
  * A failed request, with the backend envelope already parsed.
@@ -74,6 +76,8 @@ export class ApiError extends Error {
     message: string;
     details?: FieldError[];
     retryAfterSeconds?: number;
+    /** True when `message` came from the backend envelope, i.e. is fit to show. */
+    fromEnvelope?: boolean;
     cause?: unknown;
   }) {
     super(init.message, { cause: init.cause });
@@ -82,7 +86,7 @@ export class ApiError extends Error {
     this.code = init.code;
     this.details = init.details;
     this.retryAfterSeconds = init.retryAfterSeconds;
-    this.userMessage = buildUserMessage(init.code, init.message, init.retryAfterSeconds);
+    this.userMessage = buildUserMessage(init);
   }
 
   /** True when the failure is the shared per-user LLM refresh budget. */
@@ -91,8 +95,19 @@ export class ApiError extends Error {
   }
 }
 
-function buildUserMessage(code: string, message: string, retryAfterSeconds?: number): string {
-  if (code === "RATE_LIMITED") {
+function buildUserMessage(init: {
+  status: number | null;
+  code: string;
+  message: string;
+  retryAfterSeconds?: number;
+  fromEnvelope?: boolean;
+}): string {
+  const { status, code, message, retryAfterSeconds, fromEnvelope } = init;
+
+  // Keyed on the status as well as the code: a 429 raised by a proxy or an API
+  // gateway never carries the backend's `RATE_LIMITED` envelope, and it is
+  // still a rate limit the user needs the wait for.
+  if (code === "RATE_LIMITED" || status === 429) {
     // Both refresh routes are LLM-backed and share one per-user budget, so the
     // wait is the actionable part — surface it rather than a generic failure.
     const wait =
@@ -103,7 +118,15 @@ function buildUserMessage(code: string, message: string, retryAfterSeconds?: num
   }
   if (code === CLIENT_TIMEOUT) return "The request took too long. Check your connection and retry.";
   if (code === CLIENT_NETWORK) return "Could not reach SpendLess. Check your connection and retry.";
-  return message;
+  if (code === CLIENT_NO_SESSION) return "We could not confirm your session. Please try again.";
+
+  // Backend envelope messages are written for people; the synthesised fallback
+  // (`GET /categories failed with 502`) is an internal and must never be shown.
+  if (fromEnvelope) return message;
+  if (status !== null && status >= 500) {
+    return "Something went wrong on our end. Please try again.";
+  }
+  return "Something went wrong. Please try again.";
 }
 
 /** "45 seconds", "2 minutes", "1 hour" — whole units, for a wait the user reads. */
@@ -228,6 +251,7 @@ export function createApiClient(deps: ApiClientDeps) {
       });
 
     let response: Response;
+    let text: string;
     try {
       const token = await deps.getAccessToken();
 
@@ -247,6 +271,12 @@ export function createApiClient(deps: ApiClientDeps) {
         body: options.json === undefined ? undefined : JSON.stringify(options.json),
         signal: controller.signal,
       });
+
+      // Read inside the same try, and so under the same timer: `fetch` resolves
+      // as soon as the headers arrive, so a server that sends headers and then
+      // stalls the body would otherwise hang here with nothing left to cancel
+      // it. Aborting the controller aborts the body stream too.
+      text = await response.text();
     } catch (cause) {
       if (cause instanceof ApiError) throw cause;
       if (timedOut) throw timeoutError(cause);
@@ -265,7 +295,6 @@ export function createApiClient(deps: ApiClientDeps) {
     }
 
     // 204, and any empty body, carry nothing to parse.
-    const text = await response.text();
     let payload: unknown = undefined;
     if (text.length > 0) {
       try {
@@ -307,6 +336,7 @@ export function createApiClient(deps: ApiClientDeps) {
       message: envelope?.message ?? `${method} ${path} failed with ${response.status}`,
       details: envelope?.details,
       retryAfterSeconds,
+      fromEnvelope: envelope !== null,
     });
   }
 
@@ -385,8 +415,16 @@ export type ApiClient = ReturnType<typeof createApiClient>;
 async function getAccessTokenFromSupabase(): Promise<string | null> {
   const { data, error } = await getSupabase().auth.getSession();
   if (error) {
-    console.error("Could not read the Supabase session", error);
-    return null;
+    // Deliberately not `return null`. An unreadable session is not the same as
+    // an absent one: returning null would send the request out anonymously, the
+    // backend would answer 401, and the 401 path would sign out a user whose
+    // session was merely unreadable for a moment.
+    throw new ApiError({
+      status: null,
+      code: CLIENT_NO_SESSION,
+      message: "Could not read the current session",
+      cause: error,
+    });
   }
   return data.session?.access_token ?? null;
 }
