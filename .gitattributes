@@ -1,0 +1,17 @@
+# ── Mergiraf: syntax-aware merge driver ──────────────────────────────
+# The 'mergiraf' driver is registered globally by dev-kit/setup.sh.
+# These file types get structural (tree-sitter) merging instead of line-based.
+# Regenerate the authoritative list anytime with:  mergiraf languages --gitattributes
+
+*.ts    merge=mergiraf
+*.tsx   merge=mergiraf
+*.js    merge=mergiraf
+*.jsx   merge=mergiraf
+*.mjs   merge=mergiraf
+*.cjs   merge=mergiraf
+*.json  merge=mergiraf
+*.css   merge=mergiraf
+*.html  merge=mergiraf
+*.yml   merge=mergiraf
+*.yaml  merge=mergiraf
+*.toml  merge=mergiraf

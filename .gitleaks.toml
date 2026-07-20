@@ -1,0 +1,14 @@
+# gitleaks config — extends the built-in ruleset.
+# Docs: https://github.com/gitleaks/gitleaks
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Files/paths that are safe by design"
+paths = [
+  '''\.env\.example$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)out/''',
+  '''package-lock\.json$''',
+]
