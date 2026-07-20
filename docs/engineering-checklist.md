@@ -74,6 +74,14 @@ below that only a client can.
       banner throws that away.
 - [ ] Never swallow a caught error — surface it or log the cause, never `catch {}`.
 - [ ] Every request is **bounded by a timeout** so a hung backend cannot hang the UI forever.
+- [ ] **Wire up cancellation before the first `await`, not before the `fetch`.** Resolving the access
+      token is itself an await, so a caller that aborts in that window finds no listener attached: the
+      request goes out anyway and only the timeout can end it. Test the abort that happens *during*
+      token resolution, not just the one during the request. (SLAI-25.)
+- [ ] **A third-party library's error message is not automatically a user-facing one.** Supabase
+      reports a transport failure as "Failed to fetch" (engine-dependent); rendering it verbatim gives
+      the user a browser internal where advice belongs. Translate at the auth/API boundary and keep
+      the original as `cause`. (SLAI-25.)
 
 ## Rendering & state
 
