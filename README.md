@@ -59,8 +59,8 @@ cp .env.example .env.local   # then fill in the Supabase values
 npm run dev                  # http://localhost:3000
 ```
 
-Enable the git hooks once per clone (gitleaks pre-commit, plus the commit-msg hook that strips
-AI/co-author trailers):
+`npm install` wires up the git hooks for you via the `prepare` script — gitleaks pre-commit, plus the
+commit-msg hook that strips AI/co-author trailers. If they ever seem inactive, re-point them by hand:
 
 ```bash
 git config core.hooksPath .githooks

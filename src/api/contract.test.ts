@@ -88,8 +88,14 @@ describe("wire types are declared nowhere else", () => {
   // backend independently of the SHA above — so the one mitigation we have
   // stops covering it without anything going red.
   it("declares no wire type outside contract.ts, anywhere in the repo", () => {
+    // Test files are deliberately NOT exempt. A fixture typed against a locally
+    // declared `StatsResponse` is where a hand-rolled shape appears first, and
+    // the production code then gets written to match the fixture — drifting from
+    // the backend without the recorded SHA covering any of it. This file is the
+    // only exclusion, and it needs no exemption of its own: `OWNED_TYPES` is a
+    // `string[]`, not a type declaration, so it never self-triggers.
     const offenders = walk(ROOT)
-      .filter((path) => path !== CONTRACT && !/\.(test|spec)\.tsx?$/.test(path))
+      .filter((path) => path !== CONTRACT)
       .flatMap((path) => {
         const declarations = readFileSync(path, "utf8").match(WIRE_TYPE_DECLARATION) ?? [];
         return declarations.map((d) => `${relative(ROOT, path)}: ${d.trim()}`);

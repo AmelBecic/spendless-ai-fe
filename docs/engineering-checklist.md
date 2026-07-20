@@ -157,6 +157,12 @@ below that only a client can.
 - [ ] **Never discard the output of a tool whose failure blocks a commit.** `2>/dev/null` on a
       gitleaks hook leaves the developer with "a secret was found" and no file, line or rule, forcing
       a manual re-run to act on the block. (SLAI-24, reviewer.)
+- [ ] **Don't exempt test files from a "declared nowhere else" scan.** A fixture is where a
+      hand-rolled response shape appears first, and the production code then gets written to match
+      the fixture — drift the recorded SHA never covers. (SLAI-24, reviewer round two.)
+- [ ] **A gate that needs a manual opt-in per clone is off by default.** If `npm install` can wire it
+      (a `prepare` script pointing `core.hooksPath`), wire it — a README step is not a control, and a
+      fresh clone that skips it commits with no secret scan at all.
 - [ ] **Check a CLI's subcommand against `--help`, not just against exit code.** A command can still
       work while being unlisted and deprecated — `gitleaks detect` exits 0 on 8.30 but no longer
       appears in the command list, so it is a break waiting for the next upgrade.
