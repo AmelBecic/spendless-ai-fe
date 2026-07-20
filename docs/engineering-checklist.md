@@ -139,6 +139,28 @@ below that only a client can.
 - [ ] **Recount anything the docs assert before opening the PR.** When the numbers _are_ the
       deliverable, stale prose is a defect in the thing being shipped, not a typo.
 
+## Guards, gates & enforced seams
+
+- [ ] **Scope an enforced seam default-deny, not by listing today's directories.** A lint rule
+      applied to `src/app`, `src/components`, `src/hooks` leaves a later `src/lib` or `src/features`
+      unrestricted, so the seam stops covering new code with nothing going red. Restrict `src/**` and
+      exempt the one caller. (SLAI-24, reviewer.)
+- [ ] **`no-restricted-globals` matches the bare identifier only.** `window.fetch` and
+      `globalThis.fetch` are member expressions and sail past it — pair it with
+      `no-restricted-properties` or the rule enforces nothing against anyone who knows that.
+- [ ] **A guard that scans a subtree only guarantees that subtree.** If the criterion says "nowhere
+      in the repo", walk the repo root with an ignore list. (SLAI-24: the invariant-4 test scanned
+      only `src/`.)
+- [ ] **A name-suffix regex is a weak definition of a thing.** Matching `…Response` catches the
+      copy-paste but not `StatsPayload` or `ProfileDto` — the same duplicate wearing a different
+      name. Name the types you own as well.
+- [ ] **Never discard the output of a tool whose failure blocks a commit.** `2>/dev/null` on a
+      gitleaks hook leaves the developer with "a secret was found" and no file, line or rule, forcing
+      a manual re-run to act on the block. (SLAI-24, reviewer.)
+- [ ] **Check a CLI's subcommand against `--help`, not just against exit code.** A command can still
+      work while being unlisted and deprecated — `gitleaks detect` exits 0 on 8.30 but no longer
+      appears in the command list, so it is a break waiting for the next upgrade.
+
 ## Lists that mirror another source
 
 - [ ] **A hand-written list that mirrors a schema, a router or the API drifts silently — pin it with a

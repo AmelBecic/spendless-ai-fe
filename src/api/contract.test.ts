@@ -12,16 +12,49 @@ import { describe, expect, it } from "vitest";
 
 // Resolved from the project root rather than `import.meta.url`: under the jsdom
 // environment the module URL is an http:// one, and `fileURLToPath` throws on it.
-const SRC = join(process.cwd(), "src");
-const CONTRACT = join(SRC, "api", "contract.ts");
+const ROOT = process.cwd();
+const CONTRACT = join(ROOT, "src", "api", "contract.ts");
 
+const IGNORED_DIRS = new Set([".git", ".next", "node_modules", "coverage", "out", "dist"]);
+
+// Walks the repo root, not just src/: the criterion is "nowhere else in the
+// repo", and a wire type in a root-level file (next.config.ts, a future
+// middleware.ts, or an app/ directory if this ever moves off src/) is just as
+// much a second source of truth as one in a component.
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return walk(path);
-    return /\.tsx?$/.test(entry.name) ? [path] : [];
+    if (entry.isDirectory()) {
+      return IGNORED_DIRS.has(entry.name) ? [] : walk(join(dir, entry.name));
+    }
+    return /\.tsx?$/.test(entry.name) ? [join(dir, entry.name)] : [];
   });
 }
+
+// The domain types contract.ts owns, longest first so alternation cannot match
+// `Category` inside `CategoryTotal` and stop there.
+const OWNED_TYPES = [
+  "ProfileSummaryData",
+  "SuggestionStatus",
+  "ProfileSummary",
+  "CategoryTotal",
+  "FixedExpense",
+  "Transaction",
+  "SpendStats",
+  "Suggestion",
+  "FieldError",
+  "ErrorCode",
+  "Category",
+  "Cadence",
+  "Money",
+];
+
+// Matching on the `…Response` / `…Body` / `…Query` suffix alone would let an
+// `interface StatsPayload` or a `type ProfileDto` through — the same duplicate
+// wearing a different name. Naming the owned types catches the renamed copy too.
+const WIRE_TYPE_DECLARATION = new RegExp(
+  String.raw`^\s*(?:export\s+)?(?:interface|type)\s+(?:\w*(?:Response|Body|Query)|${OWNED_TYPES.join("|")})\b`,
+  "gm",
+);
 
 describe("the copied contract's header", () => {
   const header = readFileSync(CONTRACT, "utf8").slice(0, 4000);
@@ -54,15 +87,12 @@ describe("wire types are declared nowhere else", () => {
   // declares its own `StatsResponse` compiles, renders, and drifts from the
   // backend independently of the SHA above — so the one mitigation we have
   // stops covering it without anything going red.
-  it("declares no response/request body type outside contract.ts", () => {
-    const offenders = walk(SRC)
+  it("declares no wire type outside contract.ts, anywhere in the repo", () => {
+    const offenders = walk(ROOT)
       .filter((path) => path !== CONTRACT && !/\.(test|spec)\.tsx?$/.test(path))
       .flatMap((path) => {
-        const declarations =
-          readFileSync(path, "utf8").match(
-            /^\s*(?:export\s+)?(?:interface|type)\s+(\w*(?:Response|Body|ErrorBody)\w*)/gm,
-          ) ?? [];
-        return declarations.map((d) => `${relative(SRC, path)}: ${d.trim()}`);
+        const declarations = readFileSync(path, "utf8").match(WIRE_TYPE_DECLARATION) ?? [];
+        return declarations.map((d) => `${relative(ROOT, path)}: ${d.trim()}`);
       });
 
     expect(offenders).toEqual([]);

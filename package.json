@@ -18,7 +18,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "secrets": "gitleaks detect --no-banner"
+    "secrets": "gitleaks dir . --no-banner --redact"
   },
   "dependencies": {
     "next": "^16.2.10",

@@ -8,10 +8,18 @@ ok()   { printf "\033[32m✓ %s\033[0m\n" "$1"; }
 
 # 1. Secret scan (staged changes only) — hard block
 # gitleaks 8.30+ uses `git --staged` (the old `protect` command was removed).
+#
+# The findings table goes to stderr, so it is captured and printed on failure
+# rather than discarded: without it the developer is told only that something
+# was found, not which file, line or rule, and has to re-run gitleaks by hand to
+# act on a gate that just blocked the commit. `--redact` is already on, so the
+# output is safe to show.
 if command -v gitleaks >/dev/null 2>&1; then
-  if gitleaks git --staged --no-banner --redact 2>/dev/null; then
+  leaks_output=$(gitleaks git --staged --no-banner --redact 2>&1)
+  if [ $? -eq 0 ]; then
     ok "no secrets in staged changes"
   else
+    printf "%s\n" "$leaks_output"
     fail "gitleaks found a potential secret — remove it or add to .gitleaks.toml allowlist"
   fi
 else
