@@ -83,13 +83,28 @@ describe("StatsSection", () => {
   });
 
   it("shows an explicit empty state rather than a grid of zeros", async () => {
-    mockApi.getStats.mockResolvedValue({ stats: stats({ byCategory: [], topCategories: [] }) });
+    mockApi.getStats.mockResolvedValue({
+      stats: stats({ total: { amountCents: 0, currency: "EUR" }, byCategory: [], topCategories: [] }),
+    });
 
     render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
 
     expect(await screen.findByTestId("stats-empty")).toBeInTheDocument();
     // A €0.00 tile would read as a spend that happened — it must not appear.
     expect(screen.queryByText("€0.00")).not.toBeInTheDocument();
+  });
+
+  it("does NOT show the empty state when a non-zero total has no categorised rows", async () => {
+    // Uncategorised spend: total is real but byCategory came back empty. Keying
+    // the empty state on byCategory alone would falsely claim "nothing logged".
+    mockApi.getStats.mockResolvedValue({
+      stats: stats({ byCategory: [], topCategories: [] }), // total stays €123.45
+    });
+
+    render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+
+    expect(await screen.findByText("€123.45")).toBeInTheDocument();
+    expect(screen.queryByTestId("stats-empty")).not.toBeInTheDocument();
   });
 
   it("surfaces a load failure instead of a blank grid", async () => {

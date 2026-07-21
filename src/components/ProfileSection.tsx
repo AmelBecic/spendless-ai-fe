@@ -12,7 +12,7 @@
 //     that string onto `ApiError.userMessage`; we render it rather than a
 //     generic failure.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ProfileSummary } from "../api/contract";
 import { api } from "../api/client";
 
@@ -42,21 +42,33 @@ export function ProfileSection() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    api
-      .getProfile(controller.signal)
+  // The initial GET, extracted so the error state can offer a retry. A transient
+  // failure (network blip, 500, timeout) is not a 404, so it must not be a dead
+  // end — the effect runs once, and "Try again" re-invokes the same loader.
+  const load = useCallback((signal?: AbortSignal) => {
+    return api
+      .getProfile(signal)
       .then((res) => setState({ status: "ready", profile: res.profile }))
       .catch((cause: unknown) => {
-        if (controller.signal.aborted) return;
+        if (signal?.aborted) return;
         if (isNotFound(cause)) {
           setState({ status: "empty" });
           return;
         }
         setState({ status: "error", message: userMessageOf(cause, "Could not load your profile.") });
       });
-    return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    load(controller.signal);
+    return () => controller.abort();
+  }, [load]);
+
+  function handleRetry() {
+    setState({ status: "loading" });
+    load();
+  }
 
   async function handleRefresh() {
     setRefreshError(null);
@@ -86,9 +98,16 @@ export function ProfileSection() {
 
       {state.status === "loading" ? <p aria-live="polite">Loading your profile…</p> : null}
       {state.status === "error" ? (
-        <p role="alert" className="field-error">
-          {state.message}
-        </p>
+        <>
+          <p role="alert" className="field-error">
+            {state.message}
+          </p>
+          {/* A transient load failure needs a way back that is not a page
+              reload. This re-runs the GET; it does not spend the refresh budget. */}
+          <button type="button" onClick={handleRetry}>
+            Try again
+          </button>
+        </>
       ) : null}
 
       {state.status === "empty" ? (

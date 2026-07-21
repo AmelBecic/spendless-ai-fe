@@ -83,10 +83,14 @@ function StatsBody({
   stats: SpendStats;
   labelFor: (id: string) => string;
 }) {
-  // An empty ledger has no per-category spend. Show that as an explicit empty
-  // state rather than a grid of €0.00 tiles — zeros read as "you spent nothing",
-  // which is a claim; "nothing logged" is the truth (AC + checklist).
-  if (stats.byCategory.length === 0) {
+  // An empty ledger: nothing spent AND no per-category rows. Both signals,
+  // because an empty `byCategory` alone can also mean "spend exists but is
+  // uncategorised" — suppressing a non-zero total behind "nothing logged" would
+  // be a stronger misstatement than the zero-grid the AC guards against. The
+  // `=== 0` is a comparison of an API value, not arithmetic (invariant 2 intact).
+  // Show the explicit empty state rather than a grid of €0.00 tiles — zeros read
+  // as "you spent nothing", which is a claim; "nothing logged" is the truth.
+  if (stats.total.amountCents === 0 && stats.byCategory.length === 0) {
     return (
       <p data-testid="stats-empty">
         Nothing logged for {stats.periodStart} – {stats.periodEnd} yet.

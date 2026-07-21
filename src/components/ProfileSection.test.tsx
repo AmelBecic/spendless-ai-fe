@@ -72,6 +72,21 @@ describe("ProfileSection", () => {
     expect(await screen.findByText("Freshly generated summary.")).toBeInTheDocument();
   });
 
+  it("offers a retry after a non-404 load failure and recovers on success", async () => {
+    mockApi.getProfile
+      .mockRejectedValueOnce(
+        Object.assign(new Error("boom"), { status: 500, userMessage: "Could not load your profile." }),
+      )
+      .mockResolvedValueOnce({ profile: profile() });
+
+    render(<ProfileSection />);
+    expect(await screen.findByText("Could not load your profile.")).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("You spend steadily, with a weekend dining habit.")).toBeInTheDocument();
+  });
+
   it("surfaces the 429 budget message from the typed error on refresh", async () => {
     mockApi.getProfile.mockResolvedValue({ profile: profile() });
     mockApi.refreshProfile.mockRejectedValue(
