@@ -15,27 +15,37 @@
 // (SuggestionCard), because a citation the client cannot stand behind must not
 // look identical to one it can.
 
-import type { Category, FixedExpense, Suggestion } from "../api/contract";
+import type { Category, FixedExpense, Money, SpendStats, Suggestion } from "../api/contract";
 import { formatMoney } from "../money/formatMoney";
 
-// The `SpendStats` money fields a suggestion may cite as `stat:<field>`. This is
-// the client's own allowlist: a `stat:` ref outside it names no dimension we
-// recognise and so does not resolve. Kept in sync with `SpendStats` by hand,
-// same discipline as the copied contract — an unknown stat degrading loudly is
-// the intended failure, not a bug to paper over with a permissive match.
-//
-// A `Map` rather than an object literal on purpose: the ref after `stat:` is
-// model/attacker-controlled, and an object literal is indexed through its
-// prototype — `stat:constructor`, `stat:toString` and friends would return a
+// The `SpendStats` fields whose value is a `Money` — the ones a suggestion may
+// cite as `stat:<field>`. Derived from the contract type, not restated: if the
+// backend adds, removes or renames a money field, this alias changes and the
+// exhaustive `Record` below stops compiling. That is the tie the checklist wants
+// on any hand-written list mirroring the contract — drift breaks the build here
+// rather than silently degrading a well-founded suggestion to "unverified".
+type MoneyStatField = {
+  [K in keyof SpendStats]: SpendStats[K] extends Money ? K : never;
+}[keyof SpendStats];
+
+// `Record<MoneyStatField, …>` is exhaustive: a new money field on `SpendStats`
+// makes this literal incomplete (compile error), a removed/renamed one makes a
+// key invalid (compile error). The human labels still need writing by hand, but
+// the *set* of keys can no longer drift unnoticed.
+const STAT_LABELS: Record<MoneyStatField, string> = {
+  total: "Total spending",
+  recurringTotal: "Recurring spending",
+  discretionaryTotal: "Discretionary spending",
+  dailyAverage: "Daily average spend",
+  weeklyAverage: "Weekly average spend",
+};
+
+// Looked up as a `Map`, not by indexing the object above: the ref after `stat:`
+// is model/attacker-controlled, and indexing an object literal reaches through
+// its prototype — `stat:constructor`, `stat:toString` and friends would return a
 // truthy inherited value and resolve as GROUNDED, the exact silent-failure
 // invariant 5 forbids. A `Map` has no such inherited keys.
-const KNOWN_STAT_LABELS = new Map<string, string>([
-  ["total", "Total spending"],
-  ["recurringTotal", "Recurring spending"],
-  ["discretionaryTotal", "Discretionary spending"],
-  ["dailyAverage", "Daily average spend"],
-  ["weeklyAverage", "Weekly average spend"],
-]);
+const KNOWN_STAT_LABELS = new Map<string, string>(Object.entries(STAT_LABELS));
 
 /** The data a suggestion's refs are resolved against — everything this screen loaded. */
 export interface GroundingContext {
