@@ -35,7 +35,9 @@ function Dashboard() {
       <p>
         <Link href="/log">Log your spending</Link>
       </p>
-      <p>The suggestions feed lands over the rest of Sprint 3.</p>
+      <p>
+        <Link href="/suggestions">See your savings suggestions</Link>
+      </p>
       {signOutError ? <p role="alert">{signOutError}</p> : null}
       <button type="button" onClick={handleSignOut}>
         Sign out
