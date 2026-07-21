@@ -21,8 +21,9 @@ function DashboardScreen() {
   const period = periods.find((p) => p.id === periodId) ?? periods[0];
 
   // Same as the log screen: the category list is fetched once and shared, here
-  // to label the per-category stat rows.
-  const { categories } = useCategories();
+  // to label the per-category stat rows. Its loading/error state is passed down
+  // so the rows can wait for labels rather than flash raw ids.
+  const { categories, loading, error } = useCategories();
 
   return (
     <main>
@@ -34,7 +35,13 @@ function DashboardScreen() {
       <PeriodSelector periods={periods} value={periodId} onChange={setPeriodId} />
       {/* Keyed on the period so a change remounts the section into a fresh
           loading state rather than briefly showing the previous window's grid. */}
-      <StatsSection key={period.id} period={period} categories={categories} />
+      <StatsSection
+        key={period.id}
+        period={period}
+        categories={categories}
+        categoriesLoading={loading}
+        categoriesError={error}
+      />
       <ProfileSection />
     </main>
   );

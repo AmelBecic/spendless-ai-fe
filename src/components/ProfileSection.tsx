@@ -24,11 +24,15 @@ type ProfileState =
   | { status: "error"; message: string }
   | { status: "ready"; profile: ProfileSummary };
 
+// Trust only the client's typed `userMessage` (every failure becomes an
+// `ApiError` that carries one); log an unexpected untyped cause and show the
+// written fallback rather than leaking a raw `Error.message` into the banner.
 function userMessageOf(cause: unknown, fallback: string): string {
   if (typeof (cause as { userMessage?: unknown })?.userMessage === "string") {
     return (cause as { userMessage: string }).userMessage;
   }
-  return cause instanceof Error && cause.message ? cause.message : fallback;
+  console.error(cause);
+  return fallback;
 }
 
 /** A missing profile — 404 by code or status — is an empty state, not a failure. */

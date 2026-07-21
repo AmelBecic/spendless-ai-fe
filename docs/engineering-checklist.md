@@ -125,6 +125,17 @@ below that only a client can.
       the id.
 - [ ] Dates from the API are ISO-8601 strings; render them in the **user's** timezone deliberately,
       or state that you are showing UTC. Don't let the host's locale decide silently.
+- [ ] **A label that depends on a second, independent fetch must handle that fetch's loading and
+      error states — don't fall back to the raw id.** When a view joins two requests (stats +
+      categories), the one it renders often arrives first, so a labeller that returns the id on a miss
+      flashes UUIDs on screen — and prints them forever if the label fetch fails. Thread the label
+      hook's `loading`/`error` down: hold the rows until labels resolve, and degrade an unknown id to
+      a written "Unknown category", never the id. (SLAI-27, reviewer.)
+- [ ] **`userMessageOf`-style helpers must trust only the client's typed `userMessage`, never fall
+      back to a raw `Error.message`.** The `api` client wraps every failure into an `ApiError` with a
+      written-for-humans message, so the raw-message branch only ever fires for an unexpected untyped
+      throw — where it leaks "Failed to fetch" or an HTML-page `SyntaxError` into an alert. Log the
+      cause and show the written fallback instead. (SLAI-27, reviewer.)
 
 ## Dates & times on the wire
 

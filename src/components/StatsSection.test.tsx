@@ -40,6 +40,20 @@ function stats(overrides: Partial<SpendStats> = {}): SpendStats {
   };
 }
 
+function renderSection(
+  period = THIS_MONTH,
+  opts: { loading?: boolean; error?: string | null; categories?: Category[] } = {},
+) {
+  return render(
+    <StatsSection
+      period={period}
+      categories={opts.categories ?? CATEGORIES}
+      categoriesLoading={opts.loading ?? false}
+      categoriesError={opts.error ?? null}
+    />,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -48,7 +62,7 @@ describe("StatsSection", () => {
   it("renders every figure verbatim, formatted from the API response", async () => {
     mockApi.getStats.mockResolvedValue({ stats: stats() });
 
-    render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+    renderSection();
 
     expect(await screen.findByText("€123.45")).toBeInTheDocument(); // total
     expect(screen.getByText("€80.00")).toBeInTheDocument(); // recurring
@@ -69,13 +83,15 @@ describe("StatsSection", () => {
   it("sends the selected period's from/to and refetches when it changes", async () => {
     mockApi.getStats.mockResolvedValue({ stats: stats() });
 
-    const { rerender } = render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+    const { rerender } = renderSection(THIS_MONTH);
 
     await waitFor(() =>
       expect(mockApi.getStats).toHaveBeenCalledWith({ from: "2026-07-01", to: "2026-07-21" }, expect.anything()),
     );
 
-    rerender(<StatsSection period={LAST_7} categories={CATEGORIES} />);
+    rerender(
+      <StatsSection period={LAST_7} categories={CATEGORIES} categoriesLoading={false} categoriesError={null} />,
+    );
 
     await waitFor(() =>
       expect(mockApi.getStats).toHaveBeenCalledWith({ from: "2026-07-15", to: "2026-07-21" }, expect.anything()),
@@ -87,7 +103,7 @@ describe("StatsSection", () => {
       stats: stats({ total: { amountCents: 0, currency: "EUR" }, byCategory: [], topCategories: [] }),
     });
 
-    render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+    renderSection();
 
     expect(await screen.findByTestId("stats-empty")).toBeInTheDocument();
     // A €0.00 tile would read as a spend that happened — it must not appear.
@@ -101,7 +117,7 @@ describe("StatsSection", () => {
       stats: stats({ byCategory: [], topCategories: [] }), // total stays €123.45
     });
 
-    render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+    renderSection();
 
     expect(await screen.findByText("€123.45")).toBeInTheDocument();
     expect(screen.queryByTestId("stats-empty")).not.toBeInTheDocument();
@@ -112,8 +128,34 @@ describe("StatsSection", () => {
       Object.assign(new Error("boom"), { userMessage: "That window is too wide to aggregate." }),
     );
 
-    render(<StatsSection period={THIS_MONTH} categories={CATEGORIES} />);
+    renderSection();
 
     expect(await screen.findByText("That window is too wide to aggregate.")).toBeInTheDocument();
+  });
+
+  it("waits for category labels instead of flashing raw ids while they load", async () => {
+    mockApi.getStats.mockResolvedValue({ stats: stats() });
+
+    renderSection(THIS_MONTH, { loading: true });
+
+    // The top-level totals stand on their own immediately…
+    expect(await screen.findByText("€123.45")).toBeInTheDocument();
+    // …the per-category rows wait for their labels, so no raw id is painted…
+    expect(screen.queryByText("cat-groceries")).not.toBeInTheDocument();
+    expect(screen.queryByText("€67.89")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Loading categories…").length).toBeGreaterThan(0);
+  });
+
+  it("labels unresolved ids as 'Unknown category' rather than printing them", async () => {
+    // Category fetch failed: the hook yields an empty list plus an error, so no
+    // id resolves. Rows keep their amounts; the label degrades to a name, not a UUID.
+    mockApi.getStats.mockResolvedValue({ stats: stats() });
+
+    renderSection(THIS_MONTH, { error: "Could not load categories.", categories: [] });
+
+    expect(await screen.findByText("€67.89")).toBeInTheDocument();
+    expect(screen.queryByText("cat-groceries")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Unknown category").length).toBeGreaterThan(0);
+    expect(screen.getByText("Category names couldn’t load — amounts are shown without labels.")).toBeInTheDocument();
   });
 });

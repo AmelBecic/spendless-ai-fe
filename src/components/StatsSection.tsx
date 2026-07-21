@@ -23,21 +23,36 @@ type StatsState =
   | { status: "error"; message: string }
   | { status: "ready"; stats: SpendStats };
 
+// The shared `api` client wraps every failure into an `ApiError` carrying a
+// written-for-humans `userMessage`, so that is the only field trusted here. A
+// rejection without one is unexpected: log the cause and show the written
+// fallback, never a raw `Error.message` — that would leak "Failed to fetch" or
+// an HTML-page parse error straight into the alert banner.
 function userMessageOf(cause: unknown, fallback: string): string {
   if (typeof (cause as { userMessage?: unknown })?.userMessage === "string") {
     return (cause as { userMessage: string }).userMessage;
   }
-  return cause instanceof Error && cause.message ? cause.message : fallback;
+  console.error(cause);
+  return fallback;
 }
 
 export function StatsSection({
   period,
   categories,
+  categoriesLoading,
+  categoriesError,
 }: {
   period: Period;
   // Shared from the screen, same as the log screen's sections — the immutable
   // category list is fetched once and reused to label the per-category rows.
+  // Its loading/error state is threaded through too: stats and categories are
+  // independent requests, so the stats grid routinely arrives first, and a
+  // labeller that fell back to the raw id would flash UUIDs on the one screen
+  // whose whole point is being citable (and print them forever if the fetch
+  // failed).
   categories: Category[];
+  categoriesLoading: boolean;
+  categoriesError: string | null;
 }) {
   const [state, setState] = useState<StatsState>({ status: "loading" });
 
@@ -71,7 +86,14 @@ export function StatsSection({
         </p>
       ) : null}
 
-      {state.status === "ready" ? <StatsBody stats={state.stats} labelFor={labelFor} /> : null}
+      {state.status === "ready" ? (
+        <StatsBody
+          stats={state.stats}
+          labelFor={labelFor}
+          categoriesLoading={categoriesLoading}
+          categoriesError={categoriesError}
+        />
+      ) : null}
     </section>
   );
 }
@@ -79,9 +101,13 @@ export function StatsSection({
 function StatsBody({
   stats,
   labelFor,
+  categoriesLoading,
+  categoriesError,
 }: {
   stats: SpendStats;
   labelFor: (id: string) => string;
+  categoriesLoading: boolean;
+  categoriesError: string | null;
 }) {
   // An empty ledger: nothing spent AND no per-category rows. Both signals,
   // because an empty `byCategory` alone can also mean "spend exists but is
@@ -122,8 +148,26 @@ function StatsBody({
         <Stat label="Change vs. preceding window" value={formatMoney(delta)} />
       </dl>
 
-      <CategoryList heading="Top categories" totals={stats.topCategories} labelFor={labelFor} />
-      <CategoryList heading="All categories" totals={stats.byCategory} labelFor={labelFor} />
+      {categoriesError ? (
+        // Non-fatal: the totals and shares still stand on their own; only the
+        // labels are missing, so say so rather than silently printing ids.
+        <p role="status" className="field-error">
+          Category names couldn’t load — amounts are shown without labels.
+        </p>
+      ) : null}
+
+      <CategoryList
+        heading="Top categories"
+        totals={stats.topCategories}
+        labelFor={labelFor}
+        loading={categoriesLoading}
+      />
+      <CategoryList
+        heading="All categories"
+        totals={stats.byCategory}
+        labelFor={labelFor}
+        loading={categoriesLoading}
+      />
     </>
   );
 }
@@ -141,31 +185,40 @@ function CategoryList({
   heading,
   totals,
   labelFor,
+  loading,
 }: {
   heading: string;
   totals: CategoryTotal[];
   labelFor: (id: string) => string;
+  loading: boolean;
 }) {
   if (totals.length === 0) return null;
   return (
     <div className="category-block">
       <h3>{heading}</h3>
-      <ul className="category-list">
-        {totals.map((entry) => (
-          <li key={entry.categoryId} className="category-row">
-            <span className="category-label">{labelFor(entry.categoryId)}</span>
-            <span className="category-total">{formatMoney(entry.total)}</span>
-            <span className="category-share">{formatShare(entry.share)}</span>
-          </li>
-        ))}
-      </ul>
+      {loading ? (
+        // Hold the rows until the labels exist rather than paint raw ids that
+        // then swap to names a beat later.
+        <p aria-live="polite">Loading categories…</p>
+      ) : (
+        <ul className="category-list">
+          {totals.map((entry) => (
+            <li key={entry.categoryId} className="category-row">
+              <span className="category-label">{labelFor(entry.categoryId)}</span>
+              <span className="category-total">{formatMoney(entry.total)}</span>
+              <span className="category-share">{formatShare(entry.share)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-/** Resolve a category id to its label, falling back to the id rather than a
- * blank when the list has not loaded or the id is unknown. */
+/** Resolve a category id to its label. An unresolved id (unknown, or the list
+ * failed to load) renders as "Unknown category" rather than a raw UUID — this is
+ * the citable screen, and an id leaked into it reads as a real category name. */
 function categoryLabeller(categories: Category[]): (id: string) => string {
   const byId = new Map(categories.map((c) => [c.id, c.label]));
-  return (id) => byId.get(id) ?? id;
+  return (id) => byId.get(id) ?? "Unknown category";
 }
