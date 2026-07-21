@@ -1,8 +1,8 @@
 "use client";
 
-// The first protected screen. It stays deliberately thin — the log-spend forms
-// (SLAI-26), the dashboard (SLAI-27) and the suggestions feed (SLAI-28) land
-// behind this same guard.
+// The first protected screen. It stays deliberately thin — a hub that links out
+// to the dashboard (SLAI-27), the log-spend forms (SLAI-26) and the suggestions
+// feed (SLAI-28), all behind this same guard.
 
 import Link from "next/link";
 import { useState } from "react";
@@ -30,9 +30,12 @@ function Dashboard() {
         Signed in as <strong>{user?.email}</strong>.
       </p>
       <p>
+        <Link href="/dashboard">View your dashboard</Link>
+      </p>
+      <p>
         <Link href="/log">Log your spending</Link>
       </p>
-      <p>The dashboard and suggestions feed land over the rest of Sprint 3.</p>
+      <p>The suggestions feed lands over the rest of Sprint 3.</p>
       {signOutError ? <p role="alert">{signOutError}</p> : null}
       <button type="button" onClick={handleSignOut}>
         Sign out
