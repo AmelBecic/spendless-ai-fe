@@ -87,6 +87,20 @@ describe("resolveGrounding", () => {
     expect(citations[0]!.resolved).toBe(false);
   });
 
+  it("does not resolve a stat ref that names an Object.prototype member", () => {
+    // The allowlist is model/attacker-controlled at the key: `stat:constructor`,
+    // `stat:toString` etc. must NOT inherit a truthy value and read as grounded —
+    // that is the exact silent-failure invariant 5 forbids.
+    for (const ghost of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const { grounded, citations } = resolveGrounding(
+        suggestion({ sourceRefs: [`stat:${ghost}`] }),
+        CTX,
+      );
+      expect(grounded, `stat:${ghost} must not resolve`).toBe(false);
+      expect(citations[0]!.resolved).toBe(false);
+    }
+  });
+
   it("degrades on an unknown namespace (backend drift)", () => {
     const { grounded, citations } = resolveGrounding(
       suggestion({ sourceRefs: ["txn:abc123"] }),

@@ -22,12 +22,19 @@ import type { FixedExpense, Suggestion, SuggestionStatus } from "../api/contract
 import { api } from "../api/client";
 import { useCategories } from "../hooks/useCategories";
 import { formatMoney } from "../money/formatMoney";
-import { resolveGrounding, type GroundingContext } from "../suggestions/grounding";
+import {
+  createGroundingResolver,
+  type Grounding,
+  type GroundingContext,
+} from "../suggestions/grounding";
 
 type FeedState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "ready"; suggestions: Suggestion[] };
+  // `nextCursor` is kept, not dropped: pagination itself is out of scope for
+  // SLAI-28, but a non-null cursor means the backend returned only a page, so the
+  // feed says so rather than silently truncating.
+  | { status: "ready"; suggestions: Suggestion[]; nextCursor: string | null };
 
 // The two terminal actions a user can take. `"new"` is deliberately not settable
 // (contract.ts) — it is the state the agent writes.
@@ -72,7 +79,12 @@ export function SuggestionsSection() {
   // Rendering a card before then would flash a genuinely grounded suggestion as
   // "Grounding unavailable" until the context loaded, which is the exact
   // second-fetch race the checklist calls out (SLAI-27, reviewer).
-  const { categories, loading: categoriesLoading, error: categoriesError } = useCategories();
+  const {
+    categories,
+    loading: categoriesLoading,
+    error: categoriesError,
+    reload: reloadCategories,
+  } = useCategories();
 
   // A mutation (PATCH) has no AbortSignal wired through the client, so guard
   // against setting state on an unmounted component the plain way.
@@ -87,44 +99,72 @@ export function SuggestionsSection() {
   const loadFeed = useCallback((signal?: AbortSignal) => {
     return api
       .getSuggestions({}, signal)
-      .then((res) => setFeed({ status: "ready", suggestions: res.suggestions }))
+      .then((res) => setFeed({ status: "ready", suggestions: res.suggestions, nextCursor: res.nextCursor }))
       .catch((cause: unknown) => {
         if (signal?.aborted) return;
         setFeed({ status: "error", message: userMessageOf(cause, "Could not load your suggestions.") });
       });
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    loadFeed(controller.signal);
-    // Fixed expenses are grounding context, not the feed: a failure here must not
-    // blank the feed. It leaves `fixedExpense:` refs unresolved — the cards that
-    // cite one degrade, and the section-level note below says the evidence could
-    // not be loaded rather than implying the suggestion itself is unfounded.
-    api
-      .listFixedExpenses({}, controller.signal)
+  // Fixed expenses are grounding context, not the feed: a failure here must not
+  // blank the feed. It leaves `fixedExpense:` refs unresolved — the cards that
+  // cite one degrade, and the section-level note below says the evidence could
+  // not be loaded rather than implying the suggestion itself is unfounded. Split
+  // out so a transient failure is recoverable via the retry button, not stuck
+  // until a page reload.
+  const loadExpenses = useCallback((signal?: AbortSignal) => {
+    setExpensesState({ status: "loading" });
+    return api
+      .listFixedExpenses({}, signal)
       .then((res) => setExpensesState({ status: "ready", expenses: res.fixedExpenses }))
       .catch((cause: unknown) => {
-        if (controller.signal.aborted) return;
+        if (signal?.aborted) return;
         setExpensesState({
           status: "error",
           message: userMessageOf(cause, "Could not load your fixed expenses."),
         });
       });
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadFeed(controller.signal);
+    loadExpenses(controller.signal);
     return () => controller.abort();
-  }, [loadFeed]);
+  }, [loadFeed, loadExpenses]);
+
+  // Re-run both grounding-context fetches. Offered next to the section-level
+  // "some evidence couldn't load" note so the degraded state it explains is not a
+  // dead end.
+  function handleRetryGrounding() {
+    if (categoriesError) reloadCategories();
+    if (expensesState.status === "error") loadExpenses();
+  }
 
   const expenses = expensesState.status === "ready" ? expensesState.expenses : EMPTY_EXPENSES;
   const groundingCtx: GroundingContext = useMemo(
     () => ({ categories, fixedExpenses: expenses }),
     [categories, expenses],
   );
+  // Build the resolver (and its lookup maps) once per context, not once per card
+  // per render — the resolution in the render loop below is then just an array
+  // map over each suggestion's handful of refs.
+  const resolveGrounding = useMemo(() => createGroundingResolver(groundingCtx), [groundingCtx]);
 
   // The grounding verdict is only trustworthy once both context fetches have
   // settled (loaded or failed) — until then a ref that will resolve looks
   // unresolved. Hold the cards until then, exactly as StatsSection holds its
   // per-category rows for the category labels.
-  const groundingReady = !categoriesLoading && expensesState.status !== "loading";
+  //
+  // A one-way latch, not a live flag: once the context has settled and the cards
+  // are shown, a later retry (which briefly returns a source to "loading") must
+  // not blank the whole feed back to a spinner — the cards stay, going stale then
+  // fresh. Only the very first render is gated.
+  const groundingSettled = !categoriesLoading && expensesState.status !== "loading";
+  const [groundingReady, setGroundingReady] = useState(false);
+  useEffect(() => {
+    if (groundingSettled) setGroundingReady(true);
+  }, [groundingSettled]);
   // A context fetch that outright failed is worth naming: those suggestions show
   // as unverified because OUR data could not load, not because they are unfounded.
   const groundingError = categoriesError ?? (expensesState.status === "error" ? expensesState.message : null);
@@ -138,9 +178,9 @@ export function SuggestionsSection() {
     setRefreshError(null);
     setRefreshing(true);
     try {
-      const { suggestions } = await api.refreshSuggestions();
+      const { suggestions, nextCursor } = await api.refreshSuggestions();
       if (!mounted.current) return;
-      setFeed({ status: "ready", suggestions });
+      setFeed({ status: "ready", suggestions, nextCursor });
       setActionErrors({});
     } catch (cause) {
       if (!mounted.current) return;
@@ -155,7 +195,7 @@ export function SuggestionsSection() {
   function patchStatus(id: string, updater: (s: Suggestion) => Suggestion) {
     setFeed((prev) =>
       prev.status === "ready"
-        ? { status: "ready", suggestions: prev.suggestions.map((s) => (s.id === id ? updater(s) : s)) }
+        ? { ...prev, suggestions: prev.suggestions.map((s) => (s.id === id ? updater(s) : s)) }
         : prev,
     );
   }
@@ -234,22 +274,35 @@ export function SuggestionsSection() {
           {groundingError ? (
             // The grounding data itself failed to load — so the degraded cards
             // below are unverified because of us, not because the suggestions are
-            // unfounded. Say which, rather than let the per-card note imply blame.
-            <p role="status" className="field-error">
-              Some supporting evidence couldn’t load, so affected suggestions are shown unverified.
-            </p>
+            // unfounded. Say which, and offer a way back that is not a page reload.
+            <div className="grounding-error">
+              <p role="status" className="field-error">
+                Some supporting evidence couldn’t load, so affected suggestions are shown unverified.
+              </p>
+              <button type="button" onClick={handleRetryGrounding}>
+                Retry loading evidence
+              </button>
+            </div>
           ) : null}
           <ul className="suggestion-list">
             {feed.suggestions.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.id}
                 suggestion={suggestion}
-                grounding={resolveGrounding(suggestion, groundingCtx)}
+                grounding={resolveGrounding(suggestion)}
                 actionError={actionErrors[suggestion.id] ?? null}
                 onAction={(action) => handleAction(suggestion, action)}
               />
             ))}
           </ul>
+          {feed.nextCursor !== null ? (
+            // Full pagination is out of scope for SLAI-28, but a non-null cursor
+            // means there are more than this page — say so rather than truncate
+            // silently on a screen whose premise is showing everything found.
+            <p className="suggestion-more" role="status">
+              Showing your most recent suggestions. Refresh to regenerate the list.
+            </p>
+          ) : null}
         </>
       ) : null}
 
@@ -262,10 +315,20 @@ export function SuggestionsSection() {
   );
 }
 
-const STATUS_BADGE: Record<Action, string> = {
-  applied: "Applied",
-  dismissed: "Dismissed",
-};
+// Explicit rather than an object indexed by `suggestion.status`: the status is a
+// server value, and indexing an object literal by it reaches through the
+// prototype (`status: "constructor"` → a function). A switch names only the
+// states that carry a badge and returns null for anything else.
+function statusBadge(status: SuggestionStatus): string | null {
+  switch (status) {
+    case "applied":
+      return "Applied";
+    case "dismissed":
+      return "Dismissed";
+    default:
+      return null;
+  }
+}
 
 function SuggestionCard({
   suggestion,
@@ -274,12 +337,13 @@ function SuggestionCard({
   onAction,
 }: {
   suggestion: Suggestion;
-  grounding: ReturnType<typeof resolveGrounding>;
+  grounding: Grounding;
   actionError: string | null;
   onAction: (action: Action) => void;
 }) {
   const { grounded, citations } = grounding;
   const isNew = suggestion.status === "new";
+  const badge = statusBadge(suggestion.status);
 
   return (
     <li
@@ -330,9 +394,7 @@ function SuggestionCard({
         )}
       </div>
 
-      {!isNew ? (
-        <span className="suggestion-badge">{STATUS_BADGE[suggestion.status as Action]}</span>
-      ) : null}
+      {badge ? <span className="suggestion-badge">{badge}</span> : null}
 
       {isNew ? (
         <div className="suggestion-actions">

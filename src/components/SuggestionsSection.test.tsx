@@ -223,6 +223,39 @@ describe("SuggestionsSection", () => {
     expect(card).toHaveAttribute("data-grounded", "false");
   });
 
+  it("recovers a failed grounding-context fetch via retry, without a page reload", async () => {
+    const user = userEvent.setup();
+    mockApi.getSuggestions.mockResolvedValue({
+      suggestions: [suggestion({ sourceRefs: ["fixedExpense:exp-gym", "stat:recurringTotal"] })],
+      nextCursor: null,
+    });
+    // Fixed expenses fail once, then succeed on retry.
+    mockApi.listFixedExpenses
+      .mockRejectedValueOnce(
+        Object.assign(new Error("boom"), { userMessage: "Could not load your fixed expenses." }),
+      )
+      .mockResolvedValueOnce({ fixedExpenses: EXPENSES });
+
+    render(<SuggestionsSection />);
+
+    const card = (await screen.findByText(/Trim your food spending/)).closest("li")!;
+    await waitFor(() => expect(card).toHaveAttribute("data-grounded", "false"));
+
+    // Retry re-runs the evidence fetch; the fixedExpense ref now resolves.
+    await user.click(screen.getByRole("button", { name: "Retry loading evidence" }));
+
+    await waitFor(() => expect(card).toHaveAttribute("data-grounded", "true"));
+    expect(screen.queryByText(/Some supporting evidence couldn’t load/)).not.toBeInTheDocument();
+  });
+
+  it("says the feed is truncated rather than silently dropping a non-null cursor", async () => {
+    mockApi.getSuggestions.mockResolvedValue({ suggestions: [suggestion()], nextCursor: "cursor-2" });
+
+    render(<SuggestionsSection />);
+
+    expect(await screen.findByText(/Showing your most recent suggestions/)).toBeInTheDocument();
+  });
+
   it("shows an empty state when there are no suggestions", async () => {
     render(<SuggestionsSection />);
     expect(await screen.findByTestId("suggestions-empty")).toBeInTheDocument();

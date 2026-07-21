@@ -23,13 +23,19 @@ import { formatMoney } from "../money/formatMoney";
 // recognise and so does not resolve. Kept in sync with `SpendStats` by hand,
 // same discipline as the copied contract — an unknown stat degrading loudly is
 // the intended failure, not a bug to paper over with a permissive match.
-const KNOWN_STAT_LABELS: Record<string, string> = {
-  total: "Total spending",
-  recurringTotal: "Recurring spending",
-  discretionaryTotal: "Discretionary spending",
-  dailyAverage: "Daily average spend",
-  weeklyAverage: "Weekly average spend",
-};
+//
+// A `Map` rather than an object literal on purpose: the ref after `stat:` is
+// model/attacker-controlled, and an object literal is indexed through its
+// prototype — `stat:constructor`, `stat:toString` and friends would return a
+// truthy inherited value and resolve as GROUNDED, the exact silent-failure
+// invariant 5 forbids. A `Map` has no such inherited keys.
+const KNOWN_STAT_LABELS = new Map<string, string>([
+  ["total", "Total spending"],
+  ["recurringTotal", "Recurring spending"],
+  ["discretionaryTotal", "Discretionary spending"],
+  ["dailyAverage", "Daily average spend"],
+  ["weeklyAverage", "Weekly average spend"],
+]);
 
 /** The data a suggestion's refs are resolved against — everything this screen loaded. */
 export interface GroundingContext {
@@ -53,18 +59,28 @@ export interface Grounding {
   grounded: boolean;
 }
 
-/** Resolve every `sourceRef` on a suggestion against the loaded context. */
-export function resolveGrounding(suggestion: Suggestion, ctx: GroundingContext): Grounding {
+/**
+ * Build a resolver over one grounding context. The category / expense lookup maps
+ * are constructed once here, not per suggestion — a caller resolving a whole feed
+ * builds them once (memoise on the context) and resolves each suggestion cheaply.
+ */
+export function createGroundingResolver(ctx: GroundingContext): (suggestion: Suggestion) => Grounding {
   const categoryById = new Map(ctx.categories.map((c) => [c.id, c.label]));
   const expenseById = new Map(ctx.fixedExpenses.map((e) => [e.id, e]));
 
-  const citations = suggestion.sourceRefs.map((ref) => resolveRef(ref, categoryById, expenseById));
-  // An uncited suggestion is the purest ungrounded case: nothing to stand on, so
-  // it can never be grounded. A single unresolved ref is enough to degrade too —
-  // a claim is only as grounded as its weakest citation.
-  const grounded = citations.length > 0 && citations.every((c) => c.resolved);
+  return (suggestion) => {
+    const citations = suggestion.sourceRefs.map((ref) => resolveRef(ref, categoryById, expenseById));
+    // An uncited suggestion is the purest ungrounded case: nothing to stand on,
+    // so it can never be grounded. A single unresolved ref is enough to degrade
+    // too — a claim is only as grounded as its weakest citation.
+    const grounded = citations.length > 0 && citations.every((c) => c.resolved);
+    return { citations, grounded };
+  };
+}
 
-  return { citations, grounded };
+/** Resolve one suggestion against a context. Convenience over `createGroundingResolver`. */
+export function resolveGrounding(suggestion: Suggestion, ctx: GroundingContext): Grounding {
+  return createGroundingResolver(ctx)(suggestion);
 }
 
 function resolveRef(
@@ -85,7 +101,7 @@ function resolveRef(
       return label ? { ref, label: `Category: ${label}`, resolved: true } : unresolved(ref);
     }
     case "stat": {
-      const label = KNOWN_STAT_LABELS[rest];
+      const label = KNOWN_STAT_LABELS.get(rest);
       return label ? { ref, label, resolved: true } : unresolved(ref);
     }
     case "fixedExpense": {
