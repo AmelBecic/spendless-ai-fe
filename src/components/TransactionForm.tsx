@@ -20,6 +20,8 @@ import { centsToAmountInput, parseAmountToCents } from "../money/parseAmount";
 import { toFormErrors } from "../api/fieldErrors";
 import { Field } from "./Field";
 import { CategorySelect } from "./CategorySelect";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 
 /** Default currency for a new row. The app is single-currency per user today;
  * the field stays editable because the backend accepts any ISO-4217 code. */
@@ -27,7 +29,14 @@ const DEFAULT_CURRENCY = "EUR";
 
 /** The fields this form renders — a backend 400 on any other path is surfaced
  * at form level rather than dropped (see toFormErrors). */
-const KNOWN_FIELDS = ["amountCents", "currency", "categoryId", "merchant", "note", "occurredAt"] as const;
+const KNOWN_FIELDS = [
+  "amountCents",
+  "currency",
+  "categoryId",
+  "merchant",
+  "note",
+  "occurredAt",
+] as const;
 
 interface Values {
   amount: string;
@@ -41,7 +50,14 @@ interface Values {
 
 function initialValues(initial?: Transaction): Values {
   if (!initial) {
-    return { amount: "", currency: DEFAULT_CURRENCY, categoryId: "", merchant: "", note: "", occurredAt: "" };
+    return {
+      amount: "",
+      currency: DEFAULT_CURRENCY,
+      categoryId: "",
+      merchant: "",
+      note: "",
+      occurredAt: "",
+    };
   }
   return {
     // Editing shows the stored cents back as a decimal for the user; this is a
@@ -129,10 +145,14 @@ export function TransactionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-label={mode === "create" ? "Log a transaction" : "Edit transaction"}>
+    <form
+      onSubmit={handleSubmit}
+      aria-label={mode === "create" ? "Log a transaction" : "Edit transaction"}
+      className="flex flex-col gap-4"
+    >
       <Field id="amount" label="Amount" error={fieldErrors.amountCents}>
         {(props) => (
-          <input
+          <Input
             {...props}
             inputMode="decimal"
             autoComplete="off"
@@ -145,7 +165,7 @@ export function TransactionForm({
 
       <Field id="currency" label="Currency" error={fieldErrors.currency}>
         {(props) => (
-          <input
+          <Input
             {...props}
             maxLength={3}
             autoCapitalize="characters"
@@ -166,19 +186,27 @@ export function TransactionForm({
 
       <Field id="merchant" label="Merchant" error={fieldErrors.merchant}>
         {(props) => (
-          <input {...props} value={values.merchant} onChange={(event) => set("merchant", event.target.value)} />
+          <Input
+            {...props}
+            value={values.merchant}
+            onChange={(event) => set("merchant", event.target.value)}
+          />
         )}
       </Field>
 
       <Field id="note" label="Note" error={fieldErrors.note}>
         {(props) => (
-          <input {...props} value={values.note} onChange={(event) => set("note", event.target.value)} />
+          <Input
+            {...props}
+            value={values.note}
+            onChange={(event) => set("note", event.target.value)}
+          />
         )}
       </Field>
 
       <Field id="occurredAt" label="When" error={fieldErrors.occurredAt}>
         {(props) => (
-          <input
+          <Input
             {...props}
             type="datetime-local"
             value={values.occurredAt}
@@ -188,19 +216,19 @@ export function TransactionForm({
       </Field>
 
       {formError ? (
-        <p role="alert" data-testid="form-error" className="field-error">
+        <p role="alert" data-testid="form-error" className="text-sm text-coral-ink">
           {formError}
         </p>
       ) : null}
 
-      <div className="form-actions">
-        <button type="submit" disabled={submitting}>
+      <div className="mt-1 flex gap-2">
+        <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : mode === "create" ? "Log transaction" : "Save changes"}
-        </button>
+        </Button>
         {onCancel ? (
-          <button type="button" onClick={onCancel} disabled={submitting}>
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
             Cancel
-          </button>
+          </Button>
         ) : null}
       </div>
     </form>

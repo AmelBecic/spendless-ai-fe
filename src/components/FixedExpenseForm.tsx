@@ -17,6 +17,9 @@ import { centsToAmountInput, parseAmountToCents } from "../money/parseAmount";
 import { toFormErrors } from "../api/fieldErrors";
 import { Field } from "./Field";
 import { CategorySelect } from "./CategorySelect";
+import { Input } from "./ui/input";
+import { Select } from "./ui/select";
+import { Button } from "./ui/button";
 
 const DEFAULT_CURRENCY = "EUR";
 
@@ -45,7 +48,13 @@ interface Values {
 
 function initialValues(initial?: FixedExpense): Values {
   if (!initial) {
-    return { label: "", amount: "", currency: DEFAULT_CURRENCY, categoryId: "", cadence: "monthly" };
+    return {
+      label: "",
+      amount: "",
+      currency: DEFAULT_CURRENCY,
+      categoryId: "",
+      cadence: "monthly",
+    };
   }
   return {
     label: initial.label,
@@ -114,16 +123,25 @@ export function FixedExpenseForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} aria-label={mode === "create" ? "Add a fixed expense" : "Edit fixed expense"}>
+    <form
+      onSubmit={handleSubmit}
+      aria-label={mode === "create" ? "Add a fixed expense" : "Edit fixed expense"}
+      className="flex flex-col gap-4"
+    >
       <Field id="fe-label" label="Label" error={fieldErrors.label}>
         {(props) => (
-          <input {...props} placeholder="Rent" value={values.label} onChange={(event) => set("label", event.target.value)} />
+          <Input
+            {...props}
+            placeholder="Rent"
+            value={values.label}
+            onChange={(event) => set("label", event.target.value)}
+          />
         )}
       </Field>
 
       <Field id="fe-amount" label="Amount" error={fieldErrors.amountCents}>
         {(props) => (
-          <input
+          <Input
             {...props}
             inputMode="decimal"
             autoComplete="off"
@@ -136,7 +154,7 @@ export function FixedExpenseForm({
 
       <Field id="fe-currency" label="Currency" error={fieldErrors.currency}>
         {(props) => (
-          <input
+          <Input
             {...props}
             maxLength={3}
             autoCapitalize="characters"
@@ -158,30 +176,34 @@ export function FixedExpenseForm({
 
       <Field id="fe-cadence" label="Cadence" error={fieldErrors.cadence}>
         {(props) => (
-          <select {...props} value={values.cadence} onChange={(event) => set("cadence", event.target.value as Cadence)}>
+          <Select
+            {...props}
+            value={values.cadence}
+            onChange={(event) => set("cadence", event.target.value as Cadence)}
+          >
             {CADENCES.map((cadence) => (
               <option key={cadence} value={cadence}>
                 {CADENCE_LABELS[cadence]}
               </option>
             ))}
-          </select>
+          </Select>
         )}
       </Field>
 
       {formError ? (
-        <p role="alert" data-testid="form-error" className="field-error">
+        <p role="alert" data-testid="form-error" className="text-sm text-coral-ink">
           {formError}
         </p>
       ) : null}
 
-      <div className="form-actions">
-        <button type="submit" disabled={submitting}>
+      <div className="mt-1 flex gap-2">
+        <Button type="submit" disabled={submitting}>
           {submitting ? "Saving…" : mode === "create" ? "Add fixed expense" : "Save changes"}
-        </button>
+        </Button>
         {onCancel ? (
-          <button type="button" onClick={onCancel} disabled={submitting}>
+          <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
             Cancel
-          </button>
+          </Button>
         ) : null}
       </div>
     </form>

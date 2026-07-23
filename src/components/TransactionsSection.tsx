@@ -16,6 +16,8 @@ import type {
 import { api } from "../api/client";
 import { formatMoney } from "../money/formatMoney";
 import { TransactionForm } from "./TransactionForm";
+import { Card, CardContent } from "./ui/card";
+import { Button } from "./ui/button";
 
 type ListState =
   | { status: "loading" }
@@ -52,7 +54,10 @@ export function TransactionsSection({
       .then((res) => setList({ status: "ready", transactions: res.transactions }))
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        setList({ status: "error", message: userMessageOf(cause, "Could not load your transactions.") });
+        setList({
+          status: "error",
+          message: userMessageOf(cause, "Could not load your transactions."),
+        });
       });
     return () => controller.abort();
   }, []);
@@ -62,7 +67,9 @@ export function TransactionsSection({
   async function handleCreate(body: CreateTransactionBody | UpdateTransactionBody) {
     const { transaction } = await api.createTransaction(body as CreateTransactionBody);
     setList((prev) =>
-      prev.status === "ready" ? { status: "ready", transactions: [transaction, ...prev.transactions] } : prev,
+      prev.status === "ready"
+        ? { status: "ready", transactions: [transaction, ...prev.transactions] }
+        : prev,
     );
     setCreating(false);
   }
@@ -71,37 +78,50 @@ export function TransactionsSection({
     const { transaction } = await api.updateTransaction(id, body as UpdateTransactionBody);
     setList((prev) =>
       prev.status === "ready"
-        ? { status: "ready", transactions: prev.transactions.map((t) => (t.id === id ? transaction : t)) }
+        ? {
+            status: "ready",
+            transactions: prev.transactions.map((t) => (t.id === id ? transaction : t)),
+          }
         : prev,
     );
     setEditingId(null);
   }
 
   return (
-    <section aria-labelledby="transactions-heading">
-      <div className="section-head">
-        <h2 id="transactions-heading">Daily spend</h2>
+    <section aria-labelledby="transactions-heading" className="mb-10">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 id="transactions-heading" className="font-display text-lg font-semibold text-ink">
+          Daily spend
+        </h2>
         {!creating ? (
-          <button type="button" onClick={() => setCreating(true)}>
+          <Button type="button" variant="subtle" size="sm" onClick={() => setCreating(true)}>
             Log transaction
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {creating ? (
-        <TransactionForm
-          mode="create"
-          categories={categories}
-          categoriesLoading={categoriesLoading}
-          categoriesError={categoriesError}
-          onSubmit={handleCreate}
-          onCancel={() => setCreating(false)}
-        />
+        <Card className="mb-4">
+          <CardContent className="pt-5">
+            <TransactionForm
+              mode="create"
+              categories={categories}
+              categoriesLoading={categoriesLoading}
+              categoriesError={categoriesError}
+              onSubmit={handleCreate}
+              onCancel={() => setCreating(false)}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
-      {list.status === "loading" ? <p aria-live="polite">Loading transactions…</p> : null}
+      {list.status === "loading" ? (
+        <p aria-live="polite" className="text-sm text-muted">
+          Loading transactions…
+        </p>
+      ) : null}
       {list.status === "error" ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="text-sm text-coral-ink">
           {list.message}
         </p>
       ) : null}
@@ -109,23 +129,29 @@ export function TransactionsSection({
       {list.status === "ready" && list.transactions.length === 0 ? (
         // An explicit empty state, not a zero row: "nothing logged yet" is the
         // truth; a €0.00 line would read as a spend that happened.
-        <p data-testid="transactions-empty">No transactions logged yet.</p>
+        <p data-testid="transactions-empty" className="text-sm text-muted">
+          No transactions logged yet.
+        </p>
       ) : null}
 
       {list.status === "ready" && list.transactions.length > 0 ? (
-        <ul className="ledger-list">
+        <ul className="flex flex-col gap-2">
           {list.transactions.map((transaction) =>
             editingId === transaction.id ? (
               <li key={transaction.id}>
-                <TransactionForm
-                  mode="edit"
-                  initial={transaction}
-                  categories={categories}
-                  categoriesLoading={categoriesLoading}
-                  categoriesError={categoriesError}
-                  onSubmit={(body) => handleEdit(transaction.id, body)}
-                  onCancel={() => setEditingId(null)}
-                />
+                <Card>
+                  <CardContent className="pt-5">
+                    <TransactionForm
+                      mode="edit"
+                      initial={transaction}
+                      categories={categories}
+                      categoriesLoading={categoriesLoading}
+                      categoriesError={categoriesError}
+                      onSubmit={(body) => handleEdit(transaction.id, body)}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  </CardContent>
+                </Card>
               </li>
             ) : (
               <TransactionRow
@@ -136,7 +162,10 @@ export function TransactionsSection({
                 onDeleted={() =>
                   setList((prev) =>
                     prev.status === "ready"
-                      ? { status: "ready", transactions: prev.transactions.filter((t) => t.id !== transaction.id) }
+                      ? {
+                          status: "ready",
+                          transactions: prev.transactions.filter((t) => t.id !== transaction.id),
+                        }
                       : prev,
                   )
                 }
@@ -176,21 +205,27 @@ function TransactionRow({
   }
 
   return (
-    <li className="ledger-row">
-      <span className="ledger-amount">{formatMoney(transaction.money)}</span>
-      <span className="ledger-category">{categoryLabel}</span>
-      {transaction.merchant ? <span className="ledger-merchant">{transaction.merchant}</span> : null}
-      <time dateTime={transaction.occurredAt}>{formatDate(transaction.occurredAt)}</time>
-      <div className="ledger-actions">
-        <button type="button" onClick={onEdit} disabled={deleting}>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tile border border-line bg-surface px-4 py-3">
+      <span className="font-display font-semibold tabular-nums text-ink">
+        {formatMoney(transaction.money)}
+      </span>
+      <span className="text-sm text-muted">{categoryLabel}</span>
+      {transaction.merchant ? (
+        <span className="text-sm text-ink">{transaction.merchant}</span>
+      ) : null}
+      <time dateTime={transaction.occurredAt} className="text-sm text-muted">
+        {formatDate(transaction.occurredAt)}
+      </time>
+      <div className="ml-auto flex gap-1.5">
+        <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={deleting}>
           Edit
-        </button>
-        <button type="button" onClick={handleDelete} disabled={deleting}>
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={handleDelete} disabled={deleting}>
           {deleting ? "Deleting…" : "Delete"}
-        </button>
+        </Button>
       </div>
       {error ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="w-full text-sm text-coral-ink">
           {error}
         </p>
       ) : null}

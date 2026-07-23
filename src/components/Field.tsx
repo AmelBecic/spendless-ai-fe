@@ -5,6 +5,7 @@
 // field-level 400 is announced against that field rather than lost in a banner.
 
 import type { ReactNode } from "react";
+import { Label } from "./ui/label";
 
 export function Field({
   id,
@@ -25,15 +26,15 @@ export function Field({
 }) {
   const errorId = `${id}-error`;
   return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
       {children({
         id,
         "aria-invalid": Boolean(error),
         "aria-describedby": error ? errorId : undefined,
       })}
       {error ? (
-        <p id={errorId} role="alert" className="field-error">
+        <p id={errorId} role="alert" className="text-sm text-coral-ink">
           {error}
         </p>
       ) : null}
