@@ -15,6 +15,8 @@ import type {
 import { api } from "../api/client";
 import { formatMoney } from "../money/formatMoney";
 import { FixedExpenseForm } from "./FixedExpenseForm";
+import { Card, CardContent } from "./ui/card";
+import { Button } from "./ui/button";
 
 type ListState =
   | { status: "loading" }
@@ -50,7 +52,10 @@ export function FixedExpensesSection({
       .then((res) => setList({ status: "ready", expenses: res.fixedExpenses }))
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        setList({ status: "error", message: userMessageOf(cause, "Could not load your fixed expenses.") });
+        setList({
+          status: "error",
+          message: userMessageOf(cause, "Could not load your fixed expenses."),
+        });
       });
     return () => controller.abort();
   }, []);
@@ -60,7 +65,10 @@ export function FixedExpensesSection({
   function replace(updated: FixedExpense) {
     setList((prev) =>
       prev.status === "ready"
-        ? { status: "ready", expenses: prev.expenses.map((e) => (e.id === updated.id ? updated : e)) }
+        ? {
+            status: "ready",
+            expenses: prev.expenses.map((e) => (e.id === updated.id ? updated : e)),
+          }
         : prev,
     );
   }
@@ -68,7 +76,9 @@ export function FixedExpensesSection({
   async function handleCreate(body: CreateFixedExpenseBody | UpdateFixedExpenseBody) {
     const { fixedExpense } = await api.createFixedExpense(body as CreateFixedExpenseBody);
     setList((prev) =>
-      prev.status === "ready" ? { status: "ready", expenses: [fixedExpense, ...prev.expenses] } : prev,
+      prev.status === "ready"
+        ? { status: "ready", expenses: [fixedExpense, ...prev.expenses] }
+        : prev,
     );
     setCreating(false);
   }
@@ -81,51 +91,67 @@ export function FixedExpensesSection({
 
   return (
     <section aria-labelledby="fixed-expenses-heading">
-      <div className="section-head">
-        <h2 id="fixed-expenses-heading">Fixed expenses</h2>
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 id="fixed-expenses-heading" className="font-display text-lg font-semibold text-ink">
+          Fixed expenses
+        </h2>
         {!creating ? (
-          <button type="button" onClick={() => setCreating(true)}>
+          <Button type="button" variant="subtle" size="sm" onClick={() => setCreating(true)}>
             Add fixed expense
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {creating ? (
-        <FixedExpenseForm
-          mode="create"
-          categories={categories}
-          categoriesLoading={categoriesLoading}
-          categoriesError={categoriesError}
-          onSubmit={handleCreate}
-          onCancel={() => setCreating(false)}
-        />
+        <Card className="mb-4">
+          <CardContent className="pt-5">
+            <FixedExpenseForm
+              mode="create"
+              categories={categories}
+              categoriesLoading={categoriesLoading}
+              categoriesError={categoriesError}
+              onSubmit={handleCreate}
+              onCancel={() => setCreating(false)}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
-      {list.status === "loading" ? <p aria-live="polite">Loading fixed expenses…</p> : null}
+      {list.status === "loading" ? (
+        <p aria-live="polite" className="text-sm text-muted">
+          Loading fixed expenses…
+        </p>
+      ) : null}
       {list.status === "error" ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="text-sm text-coral-ink">
           {list.message}
         </p>
       ) : null}
 
       {list.status === "ready" && list.expenses.length === 0 ? (
-        <p data-testid="fixed-expenses-empty">No fixed expenses yet.</p>
+        <p data-testid="fixed-expenses-empty" className="text-sm text-muted">
+          No fixed expenses yet.
+        </p>
       ) : null}
 
       {list.status === "ready" && list.expenses.length > 0 ? (
-        <ul className="ledger-list">
+        <ul className="flex flex-col gap-2">
           {list.expenses.map((expense) =>
             editingId === expense.id ? (
               <li key={expense.id}>
-                <FixedExpenseForm
-                  mode="edit"
-                  initial={expense}
-                  categories={categories}
-                  categoriesLoading={categoriesLoading}
-                  categoriesError={categoriesError}
-                  onSubmit={(body) => handleEdit(expense.id, body)}
-                  onCancel={() => setEditingId(null)}
-                />
+                <Card>
+                  <CardContent className="pt-5">
+                    <FixedExpenseForm
+                      mode="edit"
+                      initial={expense}
+                      categories={categories}
+                      categoriesLoading={categoriesLoading}
+                      categoriesError={categoriesError}
+                      onSubmit={(body) => handleEdit(expense.id, body)}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  </CardContent>
+                </Card>
               </li>
             ) : (
               <FixedExpenseRow
@@ -174,22 +200,32 @@ function FixedExpenseRow({
   }
 
   return (
-    <li className={expense.active ? "ledger-row" : "ledger-row ledger-row-inactive"}>
-      <span className="ledger-label">{expense.label}</span>
-      <span className="ledger-amount">{formatMoney(expense.money)}</span>
-      <span className="ledger-cadence">{expense.cadence}</span>
-      <span className="ledger-category">{categoryLabel}</span>
-      {!expense.active ? <span className="ledger-badge">Inactive</span> : null}
-      <div className="ledger-actions">
-        <button type="button" onClick={onEdit} disabled={busy}>
+    <li
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-tile border border-line bg-surface px-4 py-3 ${
+        expense.active ? "" : "opacity-60"
+      }`}
+    >
+      <span className="font-medium text-ink">{expense.label}</span>
+      <span className="font-display font-semibold tabular-nums text-ink">
+        {formatMoney(expense.money)}
+      </span>
+      <span className="text-sm text-muted">{expense.cadence}</span>
+      <span className="text-sm text-muted">{categoryLabel}</span>
+      {!expense.active ? (
+        <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          Inactive
+        </span>
+      ) : null}
+      <div className="ml-auto flex gap-1.5">
+        <Button type="button" variant="ghost" size="sm" onClick={onEdit} disabled={busy}>
           Edit
-        </button>
-        <button type="button" onClick={toggleActive} disabled={busy}>
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={toggleActive} disabled={busy}>
           {busy ? "Working…" : expense.active ? "Deactivate" : "Reactivate"}
-        </button>
+        </Button>
       </div>
       {error ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="w-full text-sm text-coral-ink">
           {error}
         </p>
       ) : null}

@@ -5,6 +5,8 @@
 // list is there — a fresh account hitting a cold backend sees the difference.
 
 import { Field } from "./Field";
+import { Select } from "./ui/select";
+import { Label } from "./ui/label";
 import type { Category } from "../api/contract";
 
 export function CategorySelect({
@@ -30,9 +32,9 @@ export function CategorySelect({
 }) {
   if (loadError) {
     return (
-      <div className="field">
-        <label htmlFor={id}>{label}</label>
-        <p role="alert" className="field-error">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={id}>{label}</Label>
+        <p role="alert" className="text-sm text-coral-ink">
           {loadError}
         </p>
       </div>
@@ -42,7 +44,7 @@ export function CategorySelect({
   return (
     <Field id={id} label={label} error={error}>
       {(props) => (
-        <select
+        <Select
           {...props}
           value={value}
           disabled={loading}
@@ -54,7 +56,7 @@ export function CategorySelect({
               {category.label}
             </option>
           ))}
-        </select>
+        </Select>
       )}
     </Field>
   );
