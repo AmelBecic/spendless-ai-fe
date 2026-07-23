@@ -22,6 +22,7 @@ import type { FixedExpense, Suggestion, SuggestionStatus } from "../api/contract
 import { api } from "../api/client";
 import { useCategories } from "../hooks/useCategories";
 import { formatMoney } from "../money/formatMoney";
+import { Button } from "./ui/button";
 import {
   createGroundingResolver,
   type Grounding,
@@ -99,10 +100,15 @@ export function SuggestionsSection() {
   const loadFeed = useCallback((signal?: AbortSignal) => {
     return api
       .getSuggestions({}, signal)
-      .then((res) => setFeed({ status: "ready", suggestions: res.suggestions, nextCursor: res.nextCursor }))
+      .then((res) =>
+        setFeed({ status: "ready", suggestions: res.suggestions, nextCursor: res.nextCursor }),
+      )
       .catch((cause: unknown) => {
         if (signal?.aborted) return;
-        setFeed({ status: "error", message: userMessageOf(cause, "Could not load your suggestions.") });
+        setFeed({
+          status: "error",
+          message: userMessageOf(cause, "Could not load your suggestions."),
+        });
       });
   }, []);
 
@@ -167,7 +173,8 @@ export function SuggestionsSection() {
   }, [groundingSettled]);
   // A context fetch that outright failed is worth naming: those suggestions show
   // as unverified because OUR data could not load, not because they are unfounded.
-  const groundingError = categoriesError ?? (expensesState.status === "error" ? expensesState.message : null);
+  const groundingError =
+    categoriesError ?? (expensesState.status === "error" ? expensesState.message : null);
 
   function handleRetry() {
     setFeed({ status: "loading" });
@@ -234,37 +241,48 @@ export function SuggestionsSection() {
 
   return (
     <section aria-labelledby="suggestions-heading">
-      <div className="section-head">
-        <h2 id="suggestions-heading">Suggestions</h2>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h2 id="suggestions-heading" className="font-display text-lg font-semibold text-ink">
+          Suggestions
+        </h2>
         {feed.status !== "loading" && feed.status !== "error" ? (
-          <button type="button" onClick={handleRefresh} disabled={refreshing}>
+          <Button
+            type="button"
+            variant="subtle"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
             {refreshing ? "Refreshing…" : "Refresh suggestions"}
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {/* Loading covers both the feed itself and the grounding context: a card
           cannot be shown until its citations can be resolved, or it flashes as
           degraded then flips to grounded. */}
-      {feed.status === "loading" || (feed.status === "ready" && feed.suggestions.length > 0 && !groundingReady) ? (
-        <p aria-live="polite">Loading suggestions…</p>
+      {feed.status === "loading" ||
+      (feed.status === "ready" && feed.suggestions.length > 0 && !groundingReady) ? (
+        <p aria-live="polite" className="text-sm text-muted">
+          Loading suggestions…
+        </p>
       ) : null}
 
       {feed.status === "error" ? (
-        <>
-          <p role="alert" className="field-error">
+        <div className="flex flex-col items-start gap-3">
+          <p role="alert" className="text-sm text-coral-ink">
             {feed.message}
           </p>
           {/* A transient load failure needs a way back that is not a page reload.
               This re-runs the GET; it does not spend the refresh budget. */}
-          <button type="button" onClick={handleRetry}>
+          <Button type="button" variant="ghost" size="sm" onClick={handleRetry}>
             Try again
-          </button>
-        </>
+          </Button>
+        </div>
       ) : null}
 
       {feed.status === "ready" && feed.suggestions.length === 0 ? (
-        <p data-testid="suggestions-empty">
+        <p data-testid="suggestions-empty" className="text-sm text-muted">
           No suggestions yet — refresh to generate some from what you have logged.
         </p>
       ) : null}
@@ -275,16 +293,23 @@ export function SuggestionsSection() {
             // The grounding data itself failed to load — so the degraded cards
             // below are unverified because of us, not because the suggestions are
             // unfounded. Say which, and offer a way back that is not a page reload.
-            <div className="grounding-error">
-              <p role="status" className="field-error">
-                Some supporting evidence couldn’t load, so affected suggestions are shown unverified.
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-tile border border-amber/40 bg-amber-tint px-4 py-3">
+              <p role="status" className="text-sm text-ink">
+                Some supporting evidence couldn’t load, so affected suggestions are shown
+                unverified.
               </p>
-              <button type="button" onClick={handleRetryGrounding}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={handleRetryGrounding}
+              >
                 Retry loading evidence
-              </button>
+              </Button>
             </div>
           ) : null}
-          <ul className="suggestion-list">
+          <ul className="flex flex-col gap-4">
             {feed.suggestions.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.id}
@@ -299,7 +324,7 @@ export function SuggestionsSection() {
             // Full pagination is out of scope for SLAI-28, but a non-null cursor
             // means there are more than this page — say so rather than truncate
             // silently on a screen whose premise is showing everything found.
-            <p className="suggestion-more" role="status">
+            <p className="mt-4 text-sm text-muted" role="status">
               Showing your most recent suggestions. Refresh to regenerate the list.
             </p>
           ) : null}
@@ -307,7 +332,7 @@ export function SuggestionsSection() {
       ) : null}
 
       {refreshError ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="mt-3 text-sm text-coral-ink">
           {refreshError}
         </p>
       ) : null}
@@ -347,68 +372,87 @@ function SuggestionCard({
 
   return (
     <li
-      className={grounded ? "suggestion-card" : "suggestion-card suggestion-card--degraded"}
+      className={`rounded-card border border-l-[3px] bg-surface p-5 shadow-card ${
+        grounded ? "border-line border-l-teal" : "border-amber/40 border-l-amber"
+      }`}
       // A machine-readable grounding flag so the distinction can never collapse
       // to "looks the same" — tests and styling both key on it.
       data-grounded={grounded}
     >
       {!grounded ? (
-        <p className="suggestion-degraded-note" role="note">
+        <p className="mb-3 rounded-tile bg-amber-tint px-3 py-2 text-sm text-ink" role="note">
           Grounding unavailable — the evidence this suggestion cites could not be verified, so treat
           it with caution.
         </p>
       ) : null}
 
-      <p className="suggestion-text">{suggestion.text}</p>
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-[0.98rem] text-ink">{suggestion.text}</p>
+        <div className="shrink-0 text-right">
+          <span className="block font-display text-xl font-semibold tabular-nums text-teal-ink">
+            {formatMoney(suggestion.estMonthlySavings)}
+          </span>
+          <span className="text-[0.68rem] uppercase tracking-wide text-muted">est. / month</span>
+        </div>
+      </div>
 
-      <p className="suggestion-saving">
-        Estimated monthly saving:{" "}
-        <strong className="suggestion-saving-value">{formatMoney(suggestion.estMonthlySavings)}</strong>
-      </p>
-
-      <p className="suggestion-rationale">{suggestion.rationale}</p>
+      <p className="mt-2 text-sm text-muted">{suggestion.rationale}</p>
 
       {/* The citation, shown inline beside the claim — not behind a tooltip or an
           expander (AC bullet 1). */}
-      <div className="suggestion-citations">
-        <span className="citations-label">Grounded in</span>
+      <div
+        className={`mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-tile px-3 py-2 ${
+          grounded ? "bg-teal-tint" : "bg-amber-tint"
+        }`}
+      >
+        <span
+          className={`text-[0.66rem] font-bold uppercase tracking-wide ${
+            grounded ? "text-teal-ink" : "text-amber"
+          }`}
+        >
+          Grounded in
+        </span>
         {citations.length > 0 ? (
-          <ul className="citation-list">
-            {citations.map((citation) => (
-              <li
-                key={citation.ref}
-                className={citation.resolved ? "citation" : "citation citation--unresolved"}
-              >
-                {citation.resolved ? (
-                  citation.label
-                ) : (
-                  <>
-                    Unverified reference <code>{citation.ref}</code>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+          citations.map((citation) => (
+            <span
+              key={citation.ref}
+              className={citation.resolved ? "text-sm text-ink" : "text-sm font-medium text-amber"}
+            >
+              {citation.resolved ? (
+                citation.label
+              ) : (
+                <>
+                  Unverified reference{" "}
+                  <code className="rounded bg-surface/60 px-1">{citation.ref}</code>
+                </>
+              )}
+            </span>
+          ))
         ) : (
-          <span className="citation citation--unresolved">No supporting evidence cited</span>
+          <span className="text-sm font-medium text-amber">No supporting evidence cited</span>
         )}
       </div>
 
-      {badge ? <span className="suggestion-badge">{badge}</span> : null}
-
-      {isNew ? (
-        <div className="suggestion-actions">
-          <button type="button" onClick={() => onAction("applied")}>
-            Apply
-          </button>
-          <button type="button" onClick={() => onAction("dismissed")}>
-            Dismiss
-          </button>
-        </div>
-      ) : null}
+      <div className="mt-4 flex items-center gap-2">
+        {badge ? (
+          <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            {badge}
+          </span>
+        ) : null}
+        {isNew ? (
+          <>
+            <Button type="button" size="sm" onClick={() => onAction("applied")}>
+              Apply
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => onAction("dismissed")}>
+              Dismiss
+            </Button>
+          </>
+        ) : null}
+      </div>
 
       {actionError ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="mt-3 text-sm text-coral-ink">
           {actionError}
         </p>
       ) : null}

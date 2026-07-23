@@ -108,7 +108,9 @@ describe("SuggestionsSection", () => {
 
     const card = (await screen.findByText(/Trim your food spending/)).closest("li")!;
     await waitFor(() => expect(card).toHaveAttribute("data-grounded", "false"));
-    expect(card.className).toContain("suggestion-card--degraded");
+    // Degraded carries the amber accent, a grounded card the teal one — the two
+    // never render identically (invariant 5).
+    expect(card.className).toContain("border-l-amber");
     expect(within(card).getByText(/Grounding unavailable/)).toBeInTheDocument();
     // The missing grounding is shown, not hidden: the raw ref is surfaced.
     expect(within(card).getByText("category:cat-ghost")).toBeInTheDocument();
