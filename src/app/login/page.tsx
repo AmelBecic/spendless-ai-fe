@@ -24,7 +24,11 @@ export default function LoginPage() {
         await signIn(email, password);
         router.replace("/");
       }}
-      footer={<Link href="/signup">Need an account? Sign up</Link>}
+      footer={
+        <Link href="/signup" className="font-medium text-teal hover:underline">
+          Need an account? Sign up
+        </Link>
+      }
     />
   );
 }
