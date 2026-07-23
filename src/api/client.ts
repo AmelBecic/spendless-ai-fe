@@ -13,6 +13,7 @@
 // wire types there and nowhere else, so none are declared in this file.
 
 import type {
+  CapabilitiesResponse,
   CategoriesResponse,
   CreateFixedExpenseBody,
   CreateTransactionBody,
@@ -119,6 +120,7 @@ function buildUserMessage(init: {
   if (code === CLIENT_TIMEOUT) return "The request took too long. Check your connection and retry.";
   if (code === CLIENT_NETWORK) return "Could not reach SpendLess. Check your connection and retry.";
   if (code === CLIENT_NO_SESSION) return "We could not confirm your session. Please try again.";
+  if (code === "AI_DISABLED") return "AI mode is turned off for this server.";
 
   // Backend envelope messages are written for people; the synthesised fallback
   // (`GET /categories failed with 502`) is an internal and must never be shown.
@@ -344,6 +346,10 @@ export function createApiClient(deps: ApiClientDeps) {
     request,
 
     health: () => request<{ status: string }>("GET", "/health"),
+
+    /** Public — no session required. Reports whether the server supports AI mode. */
+    getCapabilities: (signal?: AbortSignal) =>
+      request<CapabilitiesResponse>("GET", "/capabilities", { signal }),
 
     getCategories: (signal?: AbortSignal) =>
       request<CategoriesResponse>("GET", "/categories", { signal }),

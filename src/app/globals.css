@@ -347,3 +347,14 @@ main p {
   font-size: 0.8125rem;
   color: var(--muted);
 }
+
+/* AI-mode toggle (SLAI-36). Layout only — the real styling arrives with the
+   Sprint 5 redesign. */
+.ai-mode-toggle {
+  margin-top: 1.5rem;
+}
+
+.ai-mode-toggle__hint {
+  font-size: 0.8125rem;
+  color: var(--muted);
+}

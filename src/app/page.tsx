@@ -8,9 +8,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { RequireAuth } from "../auth/RequireAuth";
 import { useAuth } from "../auth/AuthProvider";
+import { useAiMode } from "../ai/AiModeProvider";
+import { AiModeToggle } from "../components/AiModeToggle";
 
 function Dashboard() {
   const { user, signOut } = useAuth();
+  const { aiActive } = useAiMode();
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   // `signOut` rejects on a transport failure. Floating the promise would leave
@@ -35,9 +38,13 @@ function Dashboard() {
       <p>
         <Link href="/log">Log your spending</Link>
       </p>
-      <p>
-        <Link href="/suggestions">See your savings suggestions</Link>
-      </p>
+      {/* The suggestions feed is AI-backed — only offered when AI mode is active. */}
+      {aiActive ? (
+        <p>
+          <Link href="/suggestions">See your savings suggestions</Link>
+        </p>
+      ) : null}
+      <AiModeToggle />
       {signOutError ? <p role="alert">{signOutError}</p> : null}
       <button type="button" onClick={handleSignOut}>
         Sign out

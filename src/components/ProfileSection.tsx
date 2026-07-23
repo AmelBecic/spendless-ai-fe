@@ -21,6 +21,11 @@ type ProfileState =
   // NOT_FOUND — never refreshed. Distinct from an error: the fix is the refresh
   // button, not "try again".
   | { status: "empty" }
+  // AI_DISABLED — the server has no model key (or it was turned off). Not an
+  // error: nothing to retry or refresh, so it degrades to a plain note. Normally
+  // the dashboard doesn't even mount this section with AI off; this is the guard
+  // for a mid-session flip.
+  | { status: "disabled" }
   | { status: "error"; message: string }
   | { status: "ready"; profile: ProfileSummary };
 
@@ -41,6 +46,12 @@ function isNotFound(cause: unknown): boolean {
   return c?.code === "NOT_FOUND" || c?.status === 404;
 }
 
+/** AI turned off server-side — a capability state, not a failure. */
+function isAiDisabled(cause: unknown): boolean {
+  const c = cause as { code?: unknown; status?: unknown } | null;
+  return c?.code === "AI_DISABLED" || c?.status === 503;
+}
+
 export function ProfileSection() {
   const [state, setState] = useState<ProfileState>({ status: "loading" });
   const [refreshing, setRefreshing] = useState(false);
@@ -59,7 +70,14 @@ export function ProfileSection() {
           setState({ status: "empty" });
           return;
         }
-        setState({ status: "error", message: userMessageOf(cause, "Could not load your profile.") });
+        if (isAiDisabled(cause)) {
+          setState({ status: "disabled" });
+          return;
+        }
+        setState({
+          status: "error",
+          message: userMessageOf(cause, "Could not load your profile."),
+        });
       });
   }, []);
 
@@ -93,7 +111,7 @@ export function ProfileSection() {
     <section aria-labelledby="profile-heading">
       <div className="section-head">
         <h2 id="profile-heading">Your profile</h2>
-        {state.status !== "loading" && state.status !== "error" ? (
+        {state.status !== "loading" && state.status !== "error" && state.status !== "disabled" ? (
           <button type="button" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? "Refreshing…" : "Refresh profile"}
           </button>
@@ -118,6 +136,10 @@ export function ProfileSection() {
         <p data-testid="profile-empty">
           No profile yet — refresh to generate your first summary from what you have logged.
         </p>
+      ) : null}
+
+      {state.status === "disabled" ? (
+        <p data-testid="profile-disabled">AI mode is off — turn it on to see your profile.</p>
       ) : null}
 
       {state.status === "ready" ? <ProfileBody profile={state.profile} /> : null}
