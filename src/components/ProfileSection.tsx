@@ -2,7 +2,7 @@
 
 // The profile half of the dashboard (SLAI-27): the AI-maintained narrative plus
 // the structured habits / trends / notable-changes summary, and the button that
-// asks the backend to regenerate it.
+// asks the backend to regenerate it. Presented as the "money story" card.
 //
 // Two paths the checklist calls out specifically:
 //   - GET /profile 404s (NOT_FOUND) when the profile has never been refreshed.
@@ -15,6 +15,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ProfileSummary } from "../api/contract";
 import { api } from "../api/client";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Button } from "./ui/button";
 
 type ProfileState =
   | { status: "loading" }
@@ -107,62 +109,84 @@ export function ProfileSection() {
     }
   }
 
+  const canRefresh =
+    state.status !== "loading" && state.status !== "error" && state.status !== "disabled";
+
   return (
     <section aria-labelledby="profile-heading">
-      <div className="section-head">
-        <h2 id="profile-heading">Your profile</h2>
-        {state.status !== "loading" && state.status !== "error" && state.status !== "disabled" ? (
-          <button type="button" onClick={handleRefresh} disabled={refreshing}>
-            {refreshing ? "Refreshing…" : "Refresh profile"}
-          </button>
-        ) : null}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle id="profile-heading">Your money story</CardTitle>
+          <span className="rounded-full bg-teal-tint px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-teal-ink">
+            AI
+          </span>
+          {canRefresh ? (
+            <Button
+              className="ml-auto"
+              variant="subtle"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              {refreshing ? "Refreshing…" : "Refresh profile"}
+            </Button>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          {state.status === "loading" ? (
+            <p aria-live="polite" className="text-sm text-muted">
+              Loading your profile…
+            </p>
+          ) : null}
 
-      {state.status === "loading" ? <p aria-live="polite">Loading your profile…</p> : null}
-      {state.status === "error" ? (
-        <>
-          <p role="alert" className="field-error">
-            {state.message}
-          </p>
-          {/* A transient load failure needs a way back that is not a page
-              reload. This re-runs the GET; it does not spend the refresh budget. */}
-          <button type="button" onClick={handleRetry}>
-            Try again
-          </button>
-        </>
-      ) : null}
+          {state.status === "error" ? (
+            <div className="flex flex-col items-start gap-3">
+              <p role="alert" className="text-sm text-coral-ink">
+                {state.message}
+              </p>
+              {/* A transient load failure needs a way back that is not a page
+                  reload. This re-runs the GET; it does not spend the refresh budget. */}
+              <Button variant="ghost" size="sm" onClick={handleRetry}>
+                Try again
+              </Button>
+            </div>
+          ) : null}
 
-      {state.status === "empty" ? (
-        <p data-testid="profile-empty">
-          No profile yet — refresh to generate your first summary from what you have logged.
-        </p>
-      ) : null}
+          {state.status === "empty" ? (
+            <p data-testid="profile-empty" className="text-sm text-muted">
+              No profile yet — refresh to generate your first summary from what you have logged.
+            </p>
+          ) : null}
 
-      {state.status === "disabled" ? (
-        <p data-testid="profile-disabled">AI mode is off — turn it on to see your profile.</p>
-      ) : null}
+          {state.status === "disabled" ? (
+            <p data-testid="profile-disabled" className="text-sm text-muted">
+              AI mode is off — turn it on to see your profile.
+            </p>
+          ) : null}
 
-      {state.status === "ready" ? <ProfileBody profile={state.profile} /> : null}
+          {state.status === "ready" ? <ProfileBody profile={state.profile} /> : null}
 
-      {refreshError ? (
-        <p role="alert" className="field-error">
-          {refreshError}
-        </p>
-      ) : null}
+          {refreshError ? (
+            <p role="alert" className="mt-3 text-sm text-coral-ink">
+              {refreshError}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
     </section>
   );
 }
 
 function ProfileBody({ profile }: { profile: ProfileSummary }) {
   return (
-    <div className="profile">
-      <p className="profile-narrative">{profile.narrative}</p>
+    <div className="flex flex-col gap-5">
+      <p className="text-[1.02rem] leading-relaxed text-ink">{profile.narrative}</p>
 
       <SummaryList heading="Habits" items={profile.summary.habits} />
       <SummaryList heading="Trends" items={profile.summary.trends} />
       <SummaryList heading="Notable changes" items={profile.summary.notableChanges} />
 
-      <p className="profile-meta">
+      <p className="text-xs text-muted">
         As of <time dateTime={profile.asOfDate}>{profile.asOfDate}</time> · generated by{" "}
         {profile.model}
       </p>
@@ -173,16 +197,21 @@ function ProfileBody({ profile }: { profile: ProfileSummary }) {
 function SummaryList({ heading, items }: { heading: string; items: string[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="profile-list">
-      <h3>{heading}</h3>
-      <ul>
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{heading}</h3>
+      <div className="flex flex-wrap gap-2">
         {items.map((item, index) => (
           // The list is the API's own ordering of free-text lines with no id;
           // index is the only stable key available and the list is replaced
           // wholesale on refresh, never reordered in place.
-          <li key={index}>{item}</li>
+          <span
+            key={index}
+            className="rounded-xl border border-line bg-surface-2 px-3 py-1.5 text-sm text-ink"
+          >
+            {item}
+          </span>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

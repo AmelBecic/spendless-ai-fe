@@ -77,11 +77,17 @@ export function StatsSection({
 
   return (
     <section aria-labelledby="stats-heading">
-      <h2 id="stats-heading">Spending</h2>
+      <h2 id="stats-heading" className="mb-3 font-display text-lg font-semibold text-ink">
+        Spending
+      </h2>
 
-      {state.status === "loading" ? <p aria-live="polite">Loading stats…</p> : null}
+      {state.status === "loading" ? (
+        <p aria-live="polite" className="text-sm text-muted">
+          Loading stats…
+        </p>
+      ) : null}
       {state.status === "error" ? (
-        <p role="alert" className="field-error">
+        <p role="alert" className="text-sm text-coral-ink">
           {state.message}
         </p>
       ) : null}
@@ -118,7 +124,7 @@ function StatsBody({
   // as "you spent nothing", which is a claim; "nothing logged" is the truth.
   if (stats.total.amountCents === 0 && stats.byCategory.length === 0) {
     return (
-      <p data-testid="stats-empty">
+      <p data-testid="stats-empty" className="text-sm text-muted">
         Nothing logged for {stats.periodStart} – {stats.periodEnd} yet.
       </p>
     );
@@ -132,11 +138,11 @@ function StatsBody({
 
   return (
     <>
-      <p className="stats-period">
+      <p className="mb-4 text-sm tabular-nums text-muted">
         {stats.periodStart} – {stats.periodEnd}
       </p>
 
-      <dl className="stat-grid">
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-3">
         <Stat label="Total spend" value={formatMoney(stats.total)} />
         <Stat label="Recurring" value={formatMoney(stats.recurringTotal)} />
         <Stat label="Discretionary" value={formatMoney(stats.discretionaryTotal)} />
@@ -151,7 +157,7 @@ function StatsBody({
       {categoriesError ? (
         // Non-fatal: the totals and shares still stand on their own; only the
         // labels are missing, so say so rather than silently printing ids.
-        <p role="status" className="field-error">
+        <p role="status" className="mt-3 text-sm text-coral-ink">
           Category names couldn’t load — amounts are shown without labels.
         </p>
       ) : null}
@@ -174,9 +180,11 @@ function StatsBody({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="stat-card">
-      <dt className="stat-label">{label}</dt>
-      <dd className="stat-value">{value}</dd>
+    <div className="rounded-tile border border-line bg-surface p-4 shadow-soft">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dd className="mt-1.5 font-display text-2xl font-semibold tabular-nums tracking-tight text-ink">
+        {value}
+      </dd>
     </div>
   );
 }
@@ -194,19 +202,28 @@ function CategoryList({
 }) {
   if (totals.length === 0) return null;
   return (
-    <div className="category-block">
-      <h3>{heading}</h3>
+    <div className="mt-7">
+      <h3 className="mb-2 font-display text-sm font-semibold text-ink">{heading}</h3>
       {loading ? (
         // Hold the rows until the labels exist rather than paint raw ids that
         // then swap to names a beat later.
-        <p aria-live="polite">Loading categories…</p>
+        <p aria-live="polite" className="text-sm text-muted">
+          Loading categories…
+        </p>
       ) : (
-        <ul className="category-list">
+        <ul className="flex flex-col">
           {totals.map((entry) => (
-            <li key={entry.categoryId} className="category-row">
-              <span className="category-label">{labelFor(entry.categoryId)}</span>
-              <span className="category-total">{formatMoney(entry.total)}</span>
-              <span className="category-share">{formatShare(entry.share)}</span>
+            <li
+              key={entry.categoryId}
+              className="flex items-baseline gap-3 border-b border-line py-2 last:border-b-0"
+            >
+              <span className="text-sm text-ink">{labelFor(entry.categoryId)}</span>
+              <span className="ml-auto font-medium tabular-nums text-ink">
+                {formatMoney(entry.total)}
+              </span>
+              <span className="w-14 text-right text-sm tabular-nums text-muted">
+                {formatShare(entry.share)}
+              </span>
             </li>
           ))}
         </ul>
