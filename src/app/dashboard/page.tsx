@@ -2,11 +2,12 @@
 
 // The dashboard (SLAI-27): the stats grid and the profile narrative behind the
 // same auth guard as the rest of the app. The period selector lives here so its
-// choice drives the `from`/`to` on the stats request one level down.
+// choice drives the `from`/`to` on the stats request one level down. Rebuilt on
+// the app shell in the redesign (SLAI-41).
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { RequireAuth } from "../../auth/RequireAuth";
+import { AppShell } from "../../components/AppShell";
 import { useCategories } from "../../hooks/useCategories";
 import { buildPeriods } from "../../dates/periods";
 import { PeriodSelector } from "../../components/PeriodSelector";
@@ -30,24 +31,27 @@ function DashboardScreen() {
   const { categories, loading, error } = useCategories();
 
   return (
-    <main>
-      <h1>Overview</h1>
-      <p>
-        <Link href="/log">Log your spending</Link>
-      </p>
+    <AppShell>
+      <h1 className="mb-6 font-display text-2xl font-semibold tracking-tight text-ink">Overview</h1>
 
-      <PeriodSelector periods={periods} value={periodId} onChange={setPeriodId} />
-      {/* Keyed on the period so a change remounts the section into a fresh
-          loading state rather than briefly showing the previous window's grid. */}
-      <StatsSection
-        key={period.id}
-        period={period}
-        categories={categories}
-        categoriesLoading={loading}
-        categoriesError={error}
-      />
+      <div className="mb-6">
+        <PeriodSelector periods={periods} value={periodId} onChange={setPeriodId} />
+      </div>
+
+      <div className="mb-10">
+        {/* Keyed on the period so a change remounts the section into a fresh
+            loading state rather than briefly showing the previous window's grid. */}
+        <StatsSection
+          key={period.id}
+          period={period}
+          categories={categories}
+          categoriesLoading={loading}
+          categoriesError={error}
+        />
+      </div>
+
       {aiActive ? <ProfileSection /> : null}
-    </main>
+    </AppShell>
   );
 }
 
