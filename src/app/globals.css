@@ -1,18 +1,93 @@
-/* Baseline only. Real styling arrives with the screens it belongs to. */
+@import "tailwindcss";
+
+/* ─── SpendLess design system (SLAI-38) ──────────────────────────────────────
+   Warm consumer-finance: a warm paper ground, rounded cards, soft shadows, and
+   two meaningful accents — teal for what you keep, coral for what to watch.
+   The palette lives as CSS variables; @theme maps it into Tailwind so utilities
+   (bg-surface, text-teal, rounded-card, shadow-card) resolve to these tokens. */
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-teal: var(--teal);
+  --color-teal-ink: var(--teal-ink);
+  --color-teal-tint: var(--teal-tint);
+  --color-coral: var(--coral);
+  --color-coral-ink: var(--coral-ink);
+  --color-coral-tint: var(--coral-tint);
+  --color-amber: var(--amber);
+  --color-amber-tint: var(--amber-tint);
+
+  --radius-control: 11px;
+  --radius-tile: 16px;
+  --radius-card: 22px;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+
+  --shadow-soft: 0 1px 2px rgba(60, 40, 20, 0.05);
+  --shadow-card: 0 2px 4px rgba(60, 40, 20, 0.05), 0 14px 30px -18px rgba(60, 40, 20, 0.28);
+}
 
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --fg: #111418;
-  --muted: #5b6470;
+  --bg: #f6f1eb;
+  --surface: #ffffff;
+  --surface-2: #f0e9df;
+  --fg: #23201c;
+  --muted: #857a6e;
+  --border: #e7ddd0;
+  --teal: #0e9c89;
+  --teal-ink: #0a6a5e;
+  --teal-tint: #dcf1ec;
+  --coral: #f26b4e;
+  --coral-ink: #b23c26;
+  --coral-tint: #fbe3dc;
+  --amber: #d98a1f;
+  --amber-tint: #f6e8cf;
 }
 
+/* Dark tokens — designed, not inverted: warmer near-black grounds, accents
+   lifted so they stay legible on the dark surface. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1116;
-    --fg: #e8eaed;
-    --muted: #9aa4b2;
+  :root:not([data-theme="light"]) {
+    --bg: #16120e;
+    --surface: #1f1914;
+    --surface-2: #29211a;
+    --fg: #f0e9e0;
+    --muted: #a79a8c;
+    --border: #352b22;
+    --teal: #2fbba4;
+    --teal-ink: #9ee7da;
+    --teal-tint: #123b36;
+    --coral: #ff8165;
+    --coral-ink: #ffc3b4;
+    --coral-tint: #3a241c;
+    --amber: #e9a84a;
+    --amber-tint: #33291a;
   }
+}
+
+/* The viewer's explicit theme toggle wins over the OS preference, both ways. */
+:root[data-theme="dark"] {
+  --bg: #16120e;
+  --surface: #1f1914;
+  --surface-2: #29211a;
+  --fg: #f0e9e0;
+  --muted: #a79a8c;
+  --border: #352b22;
+  --teal: #2fbba4;
+  --teal-ink: #9ee7da;
+  --teal-tint: #123b36;
+  --coral: #ff8165;
+  --coral-ink: #ffc3b4;
+  --coral-tint: #3a241c;
+  --amber: #e9a84a;
+  --amber-tint: #33291a;
 }
 
 * {
@@ -28,18 +103,36 @@ body {
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Transitional shim (SLAI-38): screens not yet redesigned (log, dashboard,
+   suggestions, auth) still use native <button>s. Tailwind's preflight strips
+   their default look, so restore a usable one until each screen's ticket
+   (SLAI-39..42) replaces them with the <Button> primitive. Remove then. */
+@layer base {
+  main button:not([class]) {
+    font: inherit;
+    cursor: pointer;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--fg);
+  }
+  main button:not([class]):hover {
+    border-color: var(--muted);
+  }
+  main button:not([class]):disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+
+/* Legacy screen layout — kept until each screen adopts the app shell. New
+   shell-based screens override the width/padding with utilities. */
 main {
   margin: 0 auto;
   max-width: 44rem;
