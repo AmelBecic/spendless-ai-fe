@@ -2,13 +2,15 @@
 //
 // ─── Source ──────────────────────────────────────────────────────────────────
 // Repo:   AmelBecic/spendless-ai-be
-// Commit: 13e4d4ec642ce17c5b31d18b7813625f12f0a21e   ← re-diff against this SHA
+// Commit: 90295fc2b49e6c05879af7ace304307450275aa4   ← re-diff against this SHA
+//         (SLAI-35 branch tip — adds /capabilities + the AI_DISABLED code)
 // Files:  src/domain/types.ts     (Money, Category, Transaction, FixedExpense,
 //                                  CategoryTotal, SpendStats, ProfileSummary,
 //                                  ProfileSummaryData, Suggestion, and the
 //                                  Cadence / SuggestionStatus unions)
-//         src/http/errors.ts      (ErrorBody, FieldError)
+//         src/http/errors.ts      (ErrorBody, FieldError; AI_DISABLED code)
 //         src/routes/categories.ts      (CategoriesResponse)
+//         src/routes/capabilities.ts    (CapabilitiesResponse)
 //         src/routes/stats.ts           (StatsResponse)
 //         src/routes/profile.ts         (ProfileResponse)
 //         src/routes/suggestions.ts     (SuggestionResponse, SuggestionsResponse)
@@ -222,7 +224,15 @@ export interface ErrorBody {
  * - `RATE_LIMITED`      — 429 from the two LLM-backed refresh routes.
  */
 export type ErrorCode =
-  "VALIDATION_FAILED" | "NOT_FOUND" | "MIXED_CURRENCY" | "PERIOD_TOO_LARGE" | "RATE_LIMITED";
+  | "VALIDATION_FAILED"
+  | "NOT_FOUND"
+  | "MIXED_CURRENCY"
+  | "PERIOD_TOO_LARGE"
+  | "RATE_LIMITED"
+  // Returned by the profile/suggestions routes when the server runs with no
+  // ANTHROPIC_API_KEY (no-AI mode). The client treats it as a capability state,
+  // not a failure to surface as an error.
+  | "AI_DISABLED";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Response bodies — src/routes/*.ts
@@ -231,6 +241,11 @@ export type ErrorCode =
 /** GET /categories */
 export interface CategoriesResponse {
   categories: Category[];
+}
+
+/** GET /capabilities — which optional features the server supports. Public (no auth). */
+export interface CapabilitiesResponse {
+  ai: boolean;
 }
 
 /** GET /stats?from=&to= */

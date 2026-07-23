@@ -12,8 +12,12 @@ import { buildPeriods } from "../../dates/periods";
 import { PeriodSelector } from "../../components/PeriodSelector";
 import { StatsSection } from "../../components/StatsSection";
 import { ProfileSection } from "../../components/ProfileSection";
+import { useAiMode } from "../../ai/AiModeProvider";
 
 function DashboardScreen() {
+  // The stats grid is deterministic and always shown; the profile narrative is
+  // AI-maintained, so it only renders when AI mode is active.
+  const { aiActive } = useAiMode();
   // Anchored once on mount so every window shares one `now`; re-deriving on each
   // render would let the periods drift across a UTC midnight mid-session.
   const periods = useMemo(() => buildPeriods(), []);
@@ -42,7 +46,7 @@ function DashboardScreen() {
         categoriesLoading={loading}
         categoriesError={error}
       />
-      <ProfileSection />
+      {aiActive ? <ProfileSection /> : null}
     </main>
   );
 }

@@ -8,15 +8,28 @@
 import Link from "next/link";
 import { RequireAuth } from "../../auth/RequireAuth";
 import { SuggestionsSection } from "../../components/SuggestionsSection";
+import { AiModeToggle } from "../../components/AiModeToggle";
+import { useAiMode } from "../../ai/AiModeProvider";
 
 function SuggestionsScreen() {
+  const { aiActive, loading } = useAiMode();
+
   return (
     <main>
       <h1>Suggestions</h1>
       <p>
         <Link href="/">Back to overview</Link>
       </p>
-      <SuggestionsSection />
+      {loading ? null : aiActive ? (
+        <SuggestionsSection />
+      ) : (
+        // Reachable directly by URL even with AI off — degrade to a call to
+        // action rather than firing an AI request that would come back AI_DISABLED.
+        <>
+          <p>Savings suggestions need AI mode, which is currently off.</p>
+          <AiModeToggle />
+        </>
+      )}
     </main>
   );
 }
